@@ -15,9 +15,15 @@ Future<void> _screenshot(
   await binding.takeScreenshot(name);
 }
 
+/// Avoid pumpAndSettle — loading spinners and streams never "settle".
+Future<void> _pause(WidgetTester tester, [Duration wait = const Duration(seconds: 3)]) async {
+  await tester.pump(wait);
+  await Future<void>.delayed(wait);
+}
+
 Future<void> _restartApp(WidgetTester tester) async {
   app.main();
-  await tester.pumpAndSettle(const Duration(seconds: 5));
+  await _pause(tester, const Duration(seconds: 4));
 }
 
 void main() {
@@ -28,7 +34,7 @@ void main() {
     await _screenshot(binding, '01-login');
 
     await tester.tap(find.text('Kayıt olun'));
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await _pause(tester, const Duration(seconds: 2));
     await _screenshot(binding, '02-register');
 
     if (_email.isEmpty || _password.isEmpty) return;
@@ -40,24 +46,25 @@ void main() {
     await tester.enterText(fields.at(0), _email);
     await tester.enterText(fields.at(1), _password);
     await tester.tap(find.text('Giriş Yap'));
-    await tester.pumpAndSettle(const Duration(seconds: 30));
+    // API login — fixed wait instead of pumpAndSettle on loading spinner.
+    await _pause(tester, const Duration(seconds: 12));
 
     if (find.text('Ürünler').evaluate().isEmpty) return;
 
     await _screenshot(binding, '03-products');
 
     await tester.tap(find.text('Sepet'));
-    await tester.pumpAndSettle(const Duration(seconds: 4));
+    await _pause(tester, const Duration(seconds: 2));
     await _screenshot(binding, '04-cart');
 
     if (find.text('Barkod').evaluate().isNotEmpty) {
       await tester.tap(find.text('Barkod'));
-      await tester.pumpAndSettle(const Duration(seconds: 4));
+      await _pause(tester, const Duration(seconds: 2));
       await _screenshot(binding, '05-scanner');
     }
 
     await tester.tap(find.text('Profil'));
-    await tester.pumpAndSettle(const Duration(seconds: 4));
+    await _pause(tester, const Duration(seconds: 2));
     await _screenshot(binding, '06-profile');
   });
 }
