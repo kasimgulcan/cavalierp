@@ -6,7 +6,7 @@ on:
 jobs:
   screenshots:
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -84,32 +84,34 @@ jobs:
         working-directory: mobile
         run: flutter build ios --simulator --debug
 
-      - name: Capture screenshots with flutter drive
-        id: drive
+      - name: Capture screenshots with flutter test
+        id: screenshot_test
+        timeout-minutes: 15
         continue-on-error: true
         working-directory: mobile
         env:
           SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
           SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
         run: |
-          APP_PATH=$(find build/ios/iphonesimulator -name "Runner.app" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Runner.app not found after build"
-            exit 1
-          fi
-          echo "Using prebuilt app: $APP_PATH"
-          flutter drive \
-            --driver=test_driver/integration_test.dart \
-            --target=integration_test/app_screenshots_test.dart \
-            --use-application-binary="$APP_PATH" \
+          flutter test integration_test/app_screenshots_test.dart \
             -d "$DEVICE_ID" \
             --dart-define=SCREENSHOT_EMAIL="$SCREENSHOT_EMAIL" \
             --dart-define=SCREENSHOT_PASSWORD="$SCREENSHOT_PASSWORD" \
-            2>&1 | tee ../flutter-drive.log
+            > ../flutter-test.log 2>&1
+          echo "flutter test finished with exit code $?"
+
+      - name: Kill hung Flutter processes
+        if: always()
+        run: |
+          pkill -f "flutter test" 2>/dev/null || true
+          pkill -f "flutter drive" 2>/dev/null || true
+          pkill -f "flutter_tools" 2>/dev/null || true
+          pkill -f "dartvm" 2>/dev/null || true
 
       - name: Fallback — flutter run + simctl screenshot
         id: fallback
-        if: steps.drive.outcome != 'success'
+        if: steps.screenshot_test.outcome != 'success'
+        timeout-minutes: 10
         run: |
           mkdir -p collected-screenshots
           cd mobile
@@ -135,13 +137,14 @@ jobs:
             kill -INT "$RUN_PID" 2>/dev/null || true
           fi
           pkill -f "flutter run" 2>/dev/null || true
+          pkill -f "dartvm" 2>/dev/null || true
 
-      - name: Upload drive log on failure
-        if: steps.drive.outcome != 'success'
+      - name: Upload test log on failure
+        if: steps.screenshot_test.outcome != 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-drive-log
-          path: flutter-drive.log
+          name: flutter-test-log
+          path: flutter-test.log
           retention-days: 7
           if-no-files-found: ignore
 
@@ -159,7 +162,6 @@ jobs:
           done
           cd collected-screenshots
           ls -la
-          # Require at least one PNG > 80 KB (not blank white)
           ok=0
           for f in *.png; do
             [ -f "$f" ] || continue
