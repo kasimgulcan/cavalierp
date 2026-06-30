@@ -98,8 +98,7 @@ jobs:
             exit 1
           fi
           echo "Using prebuilt app: $APP_PATH"
-          # 25 min hard limit; no --verbose (xcodebuild dumps 20k+ env lines).
-          timeout 1500 flutter drive \
+          flutter drive \
             --driver=test_driver/integration_test.dart \
             --target=integration_test/app_screenshots_test.dart \
             --use-application-binary="$APP_PATH" \
