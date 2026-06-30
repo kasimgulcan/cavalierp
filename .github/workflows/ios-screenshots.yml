@@ -1,0 +1,73 @@
+name: iOS App Store Screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        working-directory: mobile/ios
+        run: pod install
+
+      - name: Boot iPhone simulator
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -E "iPhone (15|16) Pro Max" \
+            | head -1 \
+            | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/')
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No iPhone Pro Max simulator found"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator: $DEVICE_ID"
+          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+
+      - name: Run screenshot integration test
+        working-directory: mobile
+        env:
+          SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
+          SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
+        run: |
+          flutter test integration_test/app_screenshots_test.dart \
+            -d "$DEVICE_ID" \
+            --dart-define=SCREENSHOT_EMAIL="$SCREENSHOT_EMAIL" \
+            --dart-define=SCREENSHOT_PASSWORD="$SCREENSHOT_PASSWORD"
+
+      - name: Collect screenshot files
+        if: always()
+        run: |
+          mkdir -p collected-screenshots
+          find mobile/integration_test mobile/build -name '*.png' 2>/dev/null \
+            | grep -Ei 'screenshot|login|register|products|cart|scanner|profile|0[1-6]-' \
+            | while read -r file; do
+              cp "$file" "collected-screenshots/$(basename "$file")"
+            done
+          ls -la collected-screenshots/ || true
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-store-screenshots
+          path: collected-screenshots/
+          retention-days: 30
