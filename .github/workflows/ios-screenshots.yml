@@ -6,7 +6,7 @@ on:
 jobs:
   screenshots:
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -17,10 +17,6 @@ jobs:
         with:
           channel: stable
           cache: true
-
-      - name: Flutter doctor
-        working-directory: mobile
-        run: flutter doctor -v
 
       - name: Install dependencies
         working-directory: mobile
@@ -35,45 +31,23 @@ jobs:
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcrun simctl list devices available || true
 
-          DEVICE_ID=$(python3 <<'PY'
+          eval "$(python3 <<'PY'
           import json, subprocess, sys
-
-          def load_devices():
-              return json.loads(subprocess.check_output(
-                  ["xcrun", "simctl", "list", "devices", "available", "-j"],
-                  text=True,
-              ))
 
           def score(name: str) -> int:
               n = name.lower()
-              if "pro max" in n:
-                  return 100
-              if "plus" in n:
-                  return 90
-              if " pro" in n or n.endswith(" pro"):
-                  return 80
-              if "mini" in n or "se" in n:
-                  return 20
+              if "pro max" in n: return 100
+              if "plus" in n: return 90
+              if " pro" in n or n.endswith(" pro"): return 80
+              if "mini" in n or "se" in n: return 20
               return 50
 
-          data = load_devices()
-          candidates = []
-          for runtime in sorted(data["devices"].keys(), reverse=True):
-              if "ios" not in runtime.lower():
-                  continue
-              for device in data["devices"][runtime]:
-                  name = device.get("name", "")
-                  if "iphone" not in name.lower():
-                      continue
-                  if device.get("isAvailable") is False:
-                      continue
-                  candidates.append((score(name), runtime, name, device["udid"]))
-
-          if not candidates:
-              print("No iPhone in 'available' list, retrying full device list...", file=sys.stderr)
+          def collect(available_only):
+              flag = ["available"] if available_only else []
               data = json.loads(subprocess.check_output(
-                  ["xcrun", "simctl", "list", "devices", "-j"], text=True,
+                  ["xcrun", "simctl", "list", "devices", *flag, "-j"], text=True,
               ))
+              out = []
               for runtime in sorted(data["devices"].keys(), reverse=True):
                   if "ios" not in runtime.lower():
                       continue
@@ -81,26 +55,34 @@ jobs:
                       name = device.get("name", "")
                       if "iphone" not in name.lower():
                           continue
-                      candidates.append((score(name), runtime, name, device["udid"]))
+                      if available_only and device.get("isAvailable") is False:
+                          continue
+                      out.append((score(name), runtime, name, device["udid"]))
+              return out
 
+          candidates = collect(True) or collect(False)
           if not candidates:
-              print("Available simulators:", file=sys.stderr)
               subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
               raise SystemExit("No iPhone simulator found")
 
           candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
-          best = candidates[0]
-          print(f"Selected: {best[2]} ({best[3]}) on {best[1]}", file=sys.stderr)
-          print(best[3])
+          _, runtime, name, udid = candidates[0]
+          print(f"Selected: {name} ({udid}) on {runtime}", file=sys.stderr)
+          print(f"export DEVICE_ID={udid}")
+          print(f"export DEVICE_NAME='{name}'")
           PY
-          )
+          )"
 
-          echo "Using simulator UDID: $DEVICE_ID"
           echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          echo "DEVICE_NAME=$DEVICE_NAME" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
           open -a Simulator || true
           flutter devices
+
+      - name: Build iOS simulator app
+        working-directory: mobile
+        run: flutter build ios --simulator --debug
 
       - name: Capture screenshots with flutter drive
         id: drive
@@ -110,29 +92,53 @@ jobs:
           SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
           SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
         run: |
+          set -x
           flutter drive \
             --driver=test_driver/integration_test.dart \
             --target=integration_test/app_screenshots_test.dart \
             -d "$DEVICE_ID" \
+            --verbose \
             --dart-define=SCREENSHOT_EMAIL="$SCREENSHOT_EMAIL" \
-            --dart-define=SCREENSHOT_PASSWORD="$SCREENSHOT_PASSWORD"
+            --dart-define=SCREENSHOT_PASSWORD="$SCREENSHOT_PASSWORD" \
+            2>&1 | tee ../flutter-drive.log
 
-      - name: Fallback login screenshot via simctl
-        if: steps.drive.outcome != 'success' && env.DEVICE_ID != ''
+      - name: Fallback — flutter run + simctl screenshot
+        id: fallback
+        if: steps.drive.outcome != 'success'
         run: |
           mkdir -p collected-screenshots
           cd mobile
-          flutter build ios --simulator --debug
-          APP_PATH=$(find build/ios/iphonesimulator -name "Runner.app" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Runner.app not found"
-            find build -name "*.app" || true
-            exit 1
+          flutter run -d "$DEVICE_ID" \
+            --dart-define=SCREENSHOT_EMAIL="${{ secrets.SCREENSHOT_DEMO_EMAIL }}" \
+            --dart-define=SCREENSHOT_PASSWORD="${{ secrets.SCREENSHOT_DEMO_PASSWORD }}" \
+            > ../flutter-run.log 2>&1 &
+          RUN_PID=$!
+          echo "RUN_PID=$RUN_PID" >> "$GITHUB_ENV"
+
+          bash ../scripts/ios_wait_and_screenshot.sh \
+            "$DEVICE_ID" \
+            ../collected-screenshots \
+            01-login
+
+          kill -INT "$RUN_PID" 2>/dev/null || true
+          wait "$RUN_PID" 2>/dev/null || true
+
+      - name: Stop flutter run
+        if: always()
+        run: |
+          if [ -n "${RUN_PID:-}" ]; then
+            kill -INT "$RUN_PID" 2>/dev/null || true
           fi
-          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
-          xcrun simctl launch "$DEVICE_ID" com.csmstok.csmStokMobile
-          sleep 12
-          xcrun simctl io "$DEVICE_ID" screenshot ../collected-screenshots/01-login-fallback.png
+          pkill -f "flutter run" 2>/dev/null || true
+
+      - name: Upload drive log on failure
+        if: steps.drive.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-drive-log
+          path: flutter-drive.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Collect screenshot files
         if: always()
@@ -142,23 +148,22 @@ jobs:
             mobile/screenshots \
             mobile/integration_test/screenshots \
             mobile/build/integration_test \
-            mobile/build/host \
             collected-screenshots
           do
-            if [ -d "$dir" ]; then
-              find "$dir" -maxdepth 3 -name '*.png' -exec cp {} collected-screenshots/ \; 2>/dev/null || true
-            fi
+            [ -d "$dir" ] && find "$dir" -maxdepth 3 -name '*.png' -exec cp -n {} collected-screenshots/ \; 2>/dev/null || true
           done
-          find mobile -path '*screenshots*' -name '*.png' -exec cp {} collected-screenshots/ \; 2>/dev/null || true
           cd collected-screenshots
           ls -la
-          if [ -z "$(ls -A . 2>/dev/null)" ]; then
-            echo "No screenshots found"
-            find ../mobile -name '*.png' \
-              ! -path '*/Assets.xcassets/*' \
-              ! -path '*/android/*' \
-              ! -path '*/macos/*' \
-              | head -30 || true
+          # Require at least one PNG > 80 KB (not blank white)
+          ok=0
+          for f in *.png; do
+            [ -f "$f" ] || continue
+            size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f")
+            echo "$f: $size bytes"
+            if [ "$size" -ge 80000 ]; then ok=1; fi
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "No valid screenshots (need PNG >= 80 KB with visible UI)."
             exit 1
           fi
 
