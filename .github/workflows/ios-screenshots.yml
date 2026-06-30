@@ -93,58 +93,65 @@ jobs:
           SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
           SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
         run: |
+          set -o pipefail
           flutter test integration_test/app_screenshots_test.dart \
             -d "$DEVICE_ID" \
             --dart-define=SCREENSHOT_EMAIL="$SCREENSHOT_EMAIL" \
             --dart-define=SCREENSHOT_PASSWORD="$SCREENSHOT_PASSWORD" \
-            > ../flutter-test.log 2>&1
-          echo "flutter test finished with exit code $?"
-
-      - name: Kill hung Flutter processes
-        if: always()
-        run: |
-          pkill -f "flutter test" 2>/dev/null || true
-          pkill -f "flutter drive" 2>/dev/null || true
-          pkill -f "flutter_tools" 2>/dev/null || true
-          pkill -f "dartvm" 2>/dev/null || true
+            2>&1 | tee "$GITHUB_WORKSPACE/flutter-test.log"
+          exit "${PIPESTATUS[0]}"
 
       - name: Fallback — flutter run + simctl screenshot
         id: fallback
         if: steps.screenshot_test.outcome != 'success'
-        timeout-minutes: 10
+        timeout-minutes: 12
+        working-directory: mobile
         run: |
-          mkdir -p collected-screenshots
-          cd mobile
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/collected-screenshots"
+          LOG="$GITHUB_WORKSPACE/flutter-run.log"
+          APP_PATH=$(find build/ios/iphonesimulator -name "Runner.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app not found"
+            exit 1
+          fi
+          echo "Using prebuilt app: $APP_PATH"
+          : > "$LOG"
           flutter run -d "$DEVICE_ID" \
+            --use-application-binary="$APP_PATH" \
             --dart-define=SCREENSHOT_EMAIL="${{ secrets.SCREENSHOT_DEMO_EMAIL }}" \
             --dart-define=SCREENSHOT_PASSWORD="${{ secrets.SCREENSHOT_DEMO_PASSWORD }}" \
-            > ../flutter-run.log 2>&1 &
+            >> "$LOG" 2>&1 &
           RUN_PID=$!
           echo "RUN_PID=$RUN_PID" >> "$GITHUB_ENV"
 
-          bash ../scripts/ios_wait_and_screenshot.sh \
+          bash "$GITHUB_WORKSPACE/scripts/ios_wait_and_screenshot.sh" \
             "$DEVICE_ID" \
-            ../collected-screenshots \
-            01-login
+            "$GITHUB_WORKSPACE/collected-screenshots" \
+            01-login \
+            "$LOG"
 
           kill -INT "$RUN_PID" 2>/dev/null || true
           wait "$RUN_PID" 2>/dev/null || true
 
-      - name: Stop flutter run
+      - name: Cleanup Flutter processes
         if: always()
         run: |
           if [ -n "${RUN_PID:-}" ]; then
             kill -INT "$RUN_PID" 2>/dev/null || true
           fi
           pkill -f "flutter run" 2>/dev/null || true
-          pkill -f "dartvm" 2>/dev/null || true
+          pkill -f "flutter test" 2>/dev/null || true
+          pkill -f "flutter_tools" 2>/dev/null || true
 
-      - name: Upload test log on failure
-        if: steps.screenshot_test.outcome != 'success'
+      - name: Upload logs on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-test-log
-          path: flutter-test.log
+          name: flutter-logs
+          path: |
+            flutter-test.log
+            flutter-run.log
           retention-days: 7
           if-no-files-found: ignore
 
