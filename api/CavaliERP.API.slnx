@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CavaliERP.API.Tests/CavaliERP.API.Test.csproj" />
+  <Project Path="CavaliERP.API/CavaliERP.API.csproj" />
+</Solution>

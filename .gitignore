@@ -1,0 +1,53 @@
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE / editor
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Agent / local tooling cache
+.superpowers/
+.cursor/skills/superpowers/
+
+# .NET
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+publish/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Secrets & local config
+**/appsettings.Development.json
+**/appsettings.*.local.json
+.env
+.env.*
+!.env.example
+
+# Flutter / Dart (mobile/)
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.pub-cache/
+mobile/.pub/
+mobile/build/
+mobile/coverage/
+mobile/**/doc/api/
+mobile/**/ios/Flutter/.last_build_id
+mobile/**/android/app/debug
+mobile/**/android/app/profile
+mobile/**/android/app/release
+mobile/**/*.iml
+mobile/**/app.*.symbols
+mobile/**/app.*.map.json

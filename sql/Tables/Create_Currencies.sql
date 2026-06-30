@@ -1,0 +1,1 @@
+-- Currencies tablosu mevcut ERP şemasında tanımlıdır; bu script oluşturmaz.
