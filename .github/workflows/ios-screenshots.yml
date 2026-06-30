@@ -18,6 +18,10 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Flutter doctor
+        working-directory: mobile
+        run: flutter doctor -v
+
       - name: Install dependencies
         working-directory: mobile
         run: flutter pub get
@@ -28,41 +32,86 @@ jobs:
 
       - name: Boot iPhone simulator
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available \
-            | grep -E "iPhone (15|16) Pro Max" \
-            | head -1 \
-            | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/')
-          if [ -z "$DEVICE_ID" ]; then
-            echo "No iPhone Pro Max simulator found"
-            xcrun simctl list devices available
-            exit 1
-          fi
+          DEVICE_ID=$(python3 <<'PY'
+          import json, subprocess
+          data = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"],
+              text=True,
+          ))
+          preferred = ("iPhone 16 Pro Max", "iPhone 15 Pro Max", "iPhone 16 Pro", "iPhone 15 Pro")
+          for runtime in sorted(data["devices"].keys(), reverse=True):
+              if "iOS" not in runtime:
+                  continue
+              for device in data["devices"][runtime]:
+                  if not device.get("isAvailable"):
+                      continue
+                  if any(name in device["name"] for name in preferred):
+                      print(device["udid"])
+                      raise SystemExit
+          raise SystemExit("No suitable iPhone simulator found")
+          PY
+          )
           echo "Using simulator: $DEVICE_ID"
           echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
+          open -a Simulator || true
 
-      - name: Run screenshot integration test
+      - name: Capture screenshots with flutter drive
+        id: drive
+        continue-on-error: true
         working-directory: mobile
         env:
           SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
           SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
         run: |
-          flutter test integration_test/app_screenshots_test.dart \
+          flutter drive \
+            --driver=test_driver/integration_test.dart \
+            --target=integration_test/app_screenshots_test.dart \
             -d "$DEVICE_ID" \
             --dart-define=SCREENSHOT_EMAIL="$SCREENSHOT_EMAIL" \
             --dart-define=SCREENSHOT_PASSWORD="$SCREENSHOT_PASSWORD"
+
+      - name: Fallback login screenshot via simctl
+        if: steps.drive.outcome != 'success'
+        run: |
+          mkdir -p collected-screenshots
+          cd mobile
+          flutter build ios --simulator --debug
+          APP_PATH=$(find build/ios/iphonesimulator -name "Runner.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app not found"
+            find build -name "*.app" || true
+            exit 1
+          fi
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          xcrun simctl launch "$DEVICE_ID" com.csmstok.csmStokMobile
+          sleep 12
+          xcrun simctl io "$DEVICE_ID" screenshot ../collected-screenshots/01-login-fallback.png
 
       - name: Collect screenshot files
         if: always()
         run: |
           mkdir -p collected-screenshots
-          find mobile/integration_test mobile/build -name '*.png' 2>/dev/null \
-            | grep -Ei 'screenshot|login|register|products|cart|scanner|profile|0[1-6]-' \
-            | while read -r file; do
-              cp "$file" "collected-screenshots/$(basename "$file")"
-            done
-          ls -la collected-screenshots/ || true
+          for dir in \
+            mobile/screenshots \
+            mobile/integration_test/screenshots \
+            mobile/build/integration_test \
+            mobile/build/host \
+            collected-screenshots
+          do
+            if [ -d "$dir" ]; then
+              find "$dir" -maxdepth 3 -name '*.png' -exec cp {} collected-screenshots/ \; 2>/dev/null || true
+            fi
+          done
+          find mobile -path '*/screenshots/*.png' -exec cp {} collected-screenshots/ \; 2>/dev/null || true
+          cd collected-screenshots
+          ls -la
+          if [ -z "$(ls -A . 2>/dev/null)" ]; then
+            echo "No screenshots found"
+            find ../mobile -name '*.png' | head -30 || true
+            exit 1
+          fi
 
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
@@ -71,3 +120,4 @@ jobs:
           name: app-store-screenshots
           path: collected-screenshots/
           retention-days: 30
+          if-no-files-found: warn

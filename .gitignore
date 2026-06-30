@@ -52,3 +52,4 @@ mobile/**/*.iml
 mobile/**/app.*.symbols
 mobile/**/app.*.map.json
 mobile/integration_test/screenshots/
+mobile/screenshots/

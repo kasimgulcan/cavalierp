@@ -15,46 +15,49 @@ Future<void> _screenshot(
   await binding.takeScreenshot(name);
 }
 
+Future<void> _restartApp(WidgetTester tester) async {
+  app.main();
+  await tester.pumpAndSettle(const Duration(seconds: 5));
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('App Store screenshots', (tester) async {
-    app.main();
-    await tester.pumpAndSettle(const Duration(seconds: 5));
-
+    await _restartApp(tester);
     await _screenshot(binding, '01-login');
 
     await tester.tap(find.text('Kayıt olun'));
-    await tester.pumpAndSettle(const Duration(seconds: 2));
+    await tester.pumpAndSettle(const Duration(seconds: 3));
     await _screenshot(binding, '02-register');
 
     if (_email.isEmpty || _password.isEmpty) return;
 
-    await tester.pageBack();
-    await tester.pumpAndSettle(const Duration(seconds: 2));
+    await _restartApp(tester);
 
     final fields = find.byType(TextFormField);
+    expect(fields, findsAtLeast(2));
     await tester.enterText(fields.at(0), _email);
     await tester.enterText(fields.at(1), _password);
     await tester.tap(find.text('Giriş Yap'));
-    await tester.pumpAndSettle(const Duration(seconds: 20));
+    await tester.pumpAndSettle(const Duration(seconds: 30));
 
     if (find.text('Ürünler').evaluate().isEmpty) return;
 
     await _screenshot(binding, '03-products');
 
     await tester.tap(find.text('Sepet'));
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
     await _screenshot(binding, '04-cart');
 
     if (find.text('Barkod').evaluate().isNotEmpty) {
       await tester.tap(find.text('Barkod'));
-      await tester.pumpAndSettle(const Duration(seconds: 3));
+      await tester.pumpAndSettle(const Duration(seconds: 4));
       await _screenshot(binding, '05-scanner');
     }
 
     await tester.tap(find.text('Profil'));
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await tester.pumpAndSettle(const Duration(seconds: 4));
     await _screenshot(binding, '06-profile');
   });
 }
