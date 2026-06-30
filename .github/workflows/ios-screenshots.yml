@@ -32,30 +32,75 @@ jobs:
 
       - name: Boot iPhone simulator
         run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcrun simctl list devices available || true
+
           DEVICE_ID=$(python3 <<'PY'
-          import json, subprocess
-          data = json.loads(subprocess.check_output(
-              ["xcrun", "simctl", "list", "devices", "available", "-j"],
-              text=True,
-          ))
-          preferred = ("iPhone 16 Pro Max", "iPhone 15 Pro Max", "iPhone 16 Pro", "iPhone 15 Pro")
+          import json, subprocess, sys
+
+          def load_devices():
+              return json.loads(subprocess.check_output(
+                  ["xcrun", "simctl", "list", "devices", "available", "-j"],
+                  text=True,
+              ))
+
+          def score(name: str) -> int:
+              n = name.lower()
+              if "pro max" in n:
+                  return 100
+              if "plus" in n:
+                  return 90
+              if " pro" in n or n.endswith(" pro"):
+                  return 80
+              if "mini" in n or "se" in n:
+                  return 20
+              return 50
+
+          data = load_devices()
+          candidates = []
           for runtime in sorted(data["devices"].keys(), reverse=True):
-              if "iOS" not in runtime:
+              if "ios" not in runtime.lower():
                   continue
               for device in data["devices"][runtime]:
-                  if not device.get("isAvailable"):
+                  name = device.get("name", "")
+                  if "iphone" not in name.lower():
                       continue
-                  if any(name in device["name"] for name in preferred):
-                      print(device["udid"])
-                      raise SystemExit
-          raise SystemExit("No suitable iPhone simulator found")
+                  if device.get("isAvailable") is False:
+                      continue
+                  candidates.append((score(name), runtime, name, device["udid"]))
+
+          if not candidates:
+              print("No iPhone in 'available' list, retrying full device list...", file=sys.stderr)
+              data = json.loads(subprocess.check_output(
+                  ["xcrun", "simctl", "list", "devices", "-j"], text=True,
+              ))
+              for runtime in sorted(data["devices"].keys(), reverse=True):
+                  if "ios" not in runtime.lower():
+                      continue
+                  for device in data["devices"][runtime]:
+                      name = device.get("name", "")
+                      if "iphone" not in name.lower():
+                          continue
+                      candidates.append((score(name), runtime, name, device["udid"]))
+
+          if not candidates:
+              print("Available simulators:", file=sys.stderr)
+              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
+              raise SystemExit("No iPhone simulator found")
+
+          candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+          best = candidates[0]
+          print(f"Selected: {best[2]} ({best[3]}) on {best[1]}", file=sys.stderr)
+          print(best[3])
           PY
           )
-          echo "Using simulator: $DEVICE_ID"
+
+          echo "Using simulator UDID: $DEVICE_ID"
           echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
           open -a Simulator || true
+          flutter devices
 
       - name: Capture screenshots with flutter drive
         id: drive
@@ -73,7 +118,7 @@ jobs:
             --dart-define=SCREENSHOT_PASSWORD="$SCREENSHOT_PASSWORD"
 
       - name: Fallback login screenshot via simctl
-        if: steps.drive.outcome != 'success'
+        if: steps.drive.outcome != 'success' && env.DEVICE_ID != ''
         run: |
           mkdir -p collected-screenshots
           cd mobile
@@ -104,12 +149,16 @@ jobs:
               find "$dir" -maxdepth 3 -name '*.png' -exec cp {} collected-screenshots/ \; 2>/dev/null || true
             fi
           done
-          find mobile -path '*/screenshots/*.png' -exec cp {} collected-screenshots/ \; 2>/dev/null || true
+          find mobile -path '*screenshots*' -name '*.png' -exec cp {} collected-screenshots/ \; 2>/dev/null || true
           cd collected-screenshots
           ls -la
           if [ -z "$(ls -A . 2>/dev/null)" ]; then
             echo "No screenshots found"
-            find ../mobile -name '*.png' | head -30 || true
+            find ../mobile -name '*.png' \
+              ! -path '*/Assets.xcassets/*' \
+              ! -path '*/android/*' \
+              ! -path '*/macos/*' \
+              | head -30 || true
             exit 1
           fi
 
