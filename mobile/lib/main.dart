@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app_router.dart';
+import 'core/config/screenshot_config.dart';
 import 'shared/widgets/connectivity_banner.dart';
 
 import 'core/config/app_branding.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ScreenshotConfig.init();
   runApp(const ProviderScope(child: CavaliERPApp()));
 }
 

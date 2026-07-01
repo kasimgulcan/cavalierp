@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Capture App Store screenshots: build the native Runner.app once, then run each
-# screen via `flutter run --use-application-binary` (skips the slow Xcode step)
-# with its own --dart-define values. --dart-define is applied at Dart compile
-# time on every flutter run, so per-screen route/tab values are honored even
-# though the native binary is shared.
+# One build, then per-screen config JSON + simctl launch + screenshot.
 set -euo pipefail
 
 DEVICE_ID="${1:?device udid required}"
@@ -16,23 +12,55 @@ BUNDLE_ID="com.kocapanda.cavalierp"
 mkdir -p "$OUT_DIR"
 cd "$ROOT/mobile"
 
-# Pre-grant camera permission so the scanner screen never blocks on an
-# unattended system permission dialog during the tour.
 xcrun simctl privacy "$DEVICE_ID" grant camera "$BUNDLE_ID" 2>/dev/null || true
 
-# Build the native app shell once (slow Xcode step). Every capture then reuses
-# it via --use-application-binary and only recompiles the Dart side per screen
-# (fast, and --dart-define is applied at Dart compile time on every flutter run,
-# so the values are honored despite the shared binary).
-echo "=== Building iOS simulator app shell (once) ==="
-flutter build ios --simulator --debug 2>&1 | tail -30 || true
+echo "=== Building iOS simulator app (tour mode) ==="
+flutter build ios --simulator --debug --dart-define=SCREENSHOT_TOUR=true
 
 APP_PATH=$(find "$ROOT/mobile/build/ios/iphonesimulator" -name "Runner.app" -type d | head -1)
 if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
   echo "Runner.app not found after build"
   exit 1
 fi
-echo "Using prebuilt app: $APP_PATH"
+echo "Using app: $APP_PATH"
+
+xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+
+push_config() {
+  local route="$1"
+  local tab="$2"
+  local auto_login="$3"
+  local container
+
+  container=$(xcrun simctl get_app_container "$DEVICE_ID" "$BUNDLE_ID" data)
+  mkdir -p "$container/Documents"
+
+  SCREENSHOT_ROUTE="$route" \
+  SCREENSHOT_TAB="$tab" \
+  SCREENSHOT_AUTO_LOGIN="$auto_login" \
+  SCREENSHOT_EMAIL="$EMAIL" \
+  SCREENSHOT_PASSWORD="$PASSWORD" \
+  SCREENSHOT_CONFIG_PATH="$container/Documents/screenshot_config.json" \
+  python3 <<'PY'
+import json, os, pathlib
+
+path = pathlib.Path(os.environ["SCREENSHOT_CONFIG_PATH"])
+path.write_text(
+    json.dumps(
+        {
+            "route": os.environ["SCREENSHOT_ROUTE"],
+            "tab": int(os.environ["SCREENSHOT_TAB"]),
+            "autoLogin": os.environ["SCREENSHOT_AUTO_LOGIN"] == "true",
+            "email": os.environ.get("SCREENSHOT_EMAIL", ""),
+            "password": os.environ.get("SCREENSHOT_PASSWORD", ""),
+        },
+        ensure_ascii=False,
+    ),
+    encoding="utf-8",
+)
+print(f"Config: route={os.environ['SCREENSHOT_ROUTE']} tab={os.environ['SCREENSHOT_TAB']}")
+PY
+}
 
 capture() {
   local name="$1"
@@ -44,29 +72,22 @@ capture() {
   echo "=== Capturing $name (route=$route tab=$tab auto_login=$auto_login) ==="
   : > "$log"
 
-  flutter run -d "$DEVICE_ID" --use-application-binary="$APP_PATH" \
-    --dart-define=SCREENSHOT_ROUTE="$route" \
-    --dart-define=SCREENSHOT_TAB="$tab" \
-    --dart-define=SCREENSHOT_AUTO_LOGIN="$auto_login" \
-    --dart-define=SCREENSHOT_EMAIL="$EMAIL" \
-    --dart-define=SCREENSHOT_PASSWORD="$PASSWORD" \
-    >> "$log" 2>&1 &
-  local pid=$!
+  xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+  sleep 2
+
+  push_config "$route" "$tab" "$auto_login"
+  xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" >> "$log" 2>&1 || true
 
   bash "$ROOT/scripts/ios_wait_and_screenshot.sh" \
     "$DEVICE_ID" \
     "$OUT_DIR" \
     "$name" \
     "$log" \
-    "$auto_login" || {
-      kill -INT "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
-      return 1
-    }
+    "simctl" \
+    "$auto_login" || return 1
 
-  kill -INT "$pid" 2>/dev/null || true
-  wait "$pid" 2>/dev/null || true
-  sleep 2
+  xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+  sleep 1
 }
 
 failed=0
