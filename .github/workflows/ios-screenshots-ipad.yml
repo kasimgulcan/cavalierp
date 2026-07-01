@@ -1,0 +1,99 @@
+name: iOS App Store Screenshots (13-inch iPad)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  screenshots-ipad:
+    runs-on: macos-latest
+    timeout-minutes: 50
+
+    env:
+      SCREENSHOT_OUT: ${{ github.workspace }}/collected-screenshots-ipad
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        working-directory: mobile/ios
+        run: pod install
+
+      - name: Boot 13-inch iPad simulator
+        run: bash scripts/ios_boot_simulator.sh ipad-13
+
+      - name: Capture screenshot tour
+        id: tour
+        timeout-minutes: 40
+        env:
+          SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
+          SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
+        run: |
+          mkdir -p "$SCREENSHOT_OUT"
+          bash scripts/ios_screenshot_tour.sh \
+            "$DEVICE_ID" \
+            "$SCREENSHOT_EMAIL" \
+            "$SCREENSHOT_PASSWORD" \
+            "$SCREENSHOT_OUT"
+
+      - name: Cleanup Flutter processes
+        if: always()
+        run: |
+          pkill -f "flutter run" 2>/dev/null || true
+          pkill -f "flutter_tools" 2>/dev/null || true
+
+      - name: Collect and validate iPad screenshots
+        if: always()
+        run: |
+          bash scripts/gather_screenshots.sh "$SCREENSHOT_OUT"
+          cd "$SCREENSHOT_OUT"
+          ls -la
+          ok=0
+          count=0
+          for f in *.png; do
+            [ -f "$f" ] || continue
+            count=$((count + 1))
+            size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f")
+            width=$(sips -g pixelWidth "$f" 2>/dev/null | awk '/pixelWidth:/ {print $2}')
+            height=$(sips -g pixelHeight "$f" 2>/dev/null | awk '/pixelHeight:/ {print $2}')
+            echo "$f: ${width}x${height}, $size bytes"
+            if [ "$size" -ge 80000 ] && [ "${width:-0}" -ge 2000 ]; then
+              ok=1
+            fi
+          done
+          echo "Total PNG count: $count"
+          if [ "$ok" -ne 1 ]; then
+            echo "No valid 13-inch iPad screenshots (need PNG >= 80 KB and width >= 2000px)."
+            exit 1
+          fi
+          if [ "$count" -lt 3 ]; then
+            echo "::warning::Only $count screenshot(s) captured; App Store prefers 3-5."
+          fi
+
+      - name: Upload iPad screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-store-screenshots-ipad-13
+          path: collected-screenshots-ipad/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-logs-ipad-13
+          path: collected-screenshots-ipad/*.log
+          retention-days: 7
+          if-no-files-found: ignore
