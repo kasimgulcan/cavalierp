@@ -14,6 +14,18 @@ cd "$ROOT/mobile"
 mkdir -p "$OUT_DIR"
 : > "$LOG"
 
+# Resolve Runner.app path (workflow may pass mobile/build/... from repo root).
+if [[ "$APP_PATH" != /* ]]; then
+  APP_PATH="$ROOT/$APP_PATH"
+fi
+if [ ! -d "$APP_PATH" ]; then
+  APP_PATH=$(find "$ROOT/mobile/build/ios/iphonesimulator" -name "Runner.app" -type d | head -1)
+fi
+if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+  echo "Runner.app not found at: $2"
+  exit 1
+fi
+echo "Using Runner.app: $APP_PATH"
 echo "Starting flutter drive with prebuilt app..."
 flutter drive \
   --driver=test_driver/integration_test.dart \
@@ -42,6 +54,8 @@ for i in $(seq 1 330); do
   fi
   if ! kill -0 "$DRIVE_PID" 2>/dev/null; then
     echo "flutter drive exited after ~$((i * 2))s"
+    echo "Drive log tail:"
+    tail -80 "$LOG" 2>/dev/null || true
     break
   fi
   sleep 2

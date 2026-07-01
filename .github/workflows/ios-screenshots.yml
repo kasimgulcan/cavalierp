@@ -96,7 +96,7 @@ jobs:
           SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
         run: |
           mkdir -p "$SCREENSHOT_OUT"
-          APP_PATH=$(find mobile/build/ios/iphonesimulator -name "Runner.app" -type d | head -1)
+          APP_PATH=$(find "$GITHUB_WORKSPACE/mobile/build/ios/iphonesimulator" -name "Runner.app" -type d | head -1)
           bash scripts/ios_drive_screenshots.sh \
             "$DEVICE_ID" \
             "$APP_PATH" \
@@ -182,6 +182,15 @@ jobs:
           path: |
             flutter-drive.log
             flutter-run.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload drive log when drive fails
+        if: steps.drive.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-drive-log
+          path: flutter-drive.log
           retention-days: 7
           if-no-files-found: ignore
 
