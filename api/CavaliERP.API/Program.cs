@@ -63,6 +63,7 @@ builder.Services.AddHttpClient(ProductImageCatalog.HttpClientName, client =>
     AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
 });
 builder.Services.AddSingleton<ProductImageCatalog>();
+builder.Services.AddSingleton<SqlProcedureCatalog>();
 builder.Services.AddSingleton<SpWhitelist>();
 builder.Services.AddSingleton<SqlSpExecutor>();
 builder.Services.AddSingleton<JwtTokenService>();

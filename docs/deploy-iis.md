@@ -21,8 +21,16 @@ IIS uygulaması `/cavalierp/api` altında çalışır. API route'ları bu path'i
 ## Publish
 
 ```powershell
-cd api\CsmStok.Api
-dotnet publish -c Release -o .\publish
+cd api\CavaliERP.API
+dotnet publish .\CavaliERP.API.csproj -c Release -o .\publish
+```
+
+> **Not:** `api` klasöründen `dotnet publish -o .\publish` (solution seviyesi) çalıştırmayın; test projesi de derlenir ve çıktı karışır. Her zaman `CavaliERP.API.csproj` hedefleyin.
+
+Veya repo kökünden:
+
+```powershell
+.\scripts\publish-api.ps1
 ```
 
 Copy `publish/` contents to the IIS site physical path (include `web.config`), then recycle the app pool.
@@ -78,6 +86,26 @@ Invoke-RestMethod -Uri "https://app.devcloud.com.tr/cavalierp/api/auth/exec" `
 ```
 
 Expected: `403` — `SP not allowed.`
+
+**Misafir ürün listesi (App Store review — auth gerekmez):**
+
+```powershell
+$body = '{"sp":"Product.List","params":{"CurrencyId":1,"Page":1,"PageSize":5}}'
+Invoke-RestMethod -Uri "https://app.devcloud.com.tr/cavalierp/api/auth/exec" `
+  -Method Post -ContentType "application/json" -Body $body
+```
+
+Expected: `success: true` ve ürün satırları.
+
+**Para birimleri (auth gerekmez):**
+
+```powershell
+$body = '{"sp":"GetCurrency","params":{}}'
+Invoke-RestMethod -Uri "https://app.devcloud.com.tr/cavalierp/api/auth/exec" `
+  -Method Post -ContentType "application/json" -Body $body
+```
+
+Expected: `success: true`.
 
 **Register test (hata gövdesini görmek için `Invoke-WebRequest`):**
 

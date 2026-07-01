@@ -42,7 +42,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       showErrorSnackBar(context, error);
       return;
     }
-    context.go('/home');
+    final redirect = GoRouterState.of(context).uri.queryParameters['redirect'];
+    if (redirect != null && redirect.isNotEmpty) {
+      context.go(redirect);
+    } else {
+      context.go('/home');
+    }
   }
 
   @override
@@ -79,7 +84,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Devam etmek için hesabınıza giriş yapın',
+              'Devam etmek için hesabınıza giriş yapın veya ürünleri inceleyin',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -139,6 +144,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               label: 'Giriş Yap',
               loading: _loading,
               onPressed: _submit,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton(
+                onPressed: _loading ? null : () => context.go('/home'),
+                child: const Text('Ürünleri incele'),
+              ),
             ),
           ],
         ),

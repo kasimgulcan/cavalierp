@@ -4,11 +4,8 @@ import '../auth/auth_provider.dart';
 import 'currency_selection.dart';
 
 final currenciesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final loggedIn = ref.watch(authStateProvider).valueOrNull ?? false;
-  if (!loggedIn) return [];
-
   final client = ref.watch(spClientProvider);
-  final response = await client.exec('GetCurrency', {});
+  final response = await client.exec('GetCurrency', {}, auth: false);
   if (!response.success) {
     throw Exception(response.error ?? 'Para birimleri yüklenemedi');
   }

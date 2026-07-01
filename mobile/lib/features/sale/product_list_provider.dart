@@ -91,12 +91,16 @@ class ProductListNotifier extends StateNotifier<ProductListState> {
   Future<void> _loadPage({required bool reset}) async {
     final nextPage = reset ? 1 : _page + 1;
     try {
-      final response = await _client.exec('Product.List', {
-        'Search': _filter.search.isEmpty ? null : _filter.search,
-        'CurrencyId': _filter.currencyId,
-        'Page': nextPage,
-        'PageSize': kProductPageSize,
-      });
+      final response = await _client.exec(
+        'Product.List',
+        {
+          'Search': _filter.search.isEmpty ? null : _filter.search,
+          'CurrencyId': _filter.currencyId,
+          'Page': nextPage,
+          'PageSize': kProductPageSize,
+        },
+        auth: false,
+      );
       if (!response.success) {
         state = state.copyWith(
           isLoading: false,

@@ -6,4 +6,5 @@ public sealed record SpDefinition(
     IReadOnlySet<string> AllowedParams,
     bool RequiresAuth,
     bool RequiresUserId,
-    bool RequiresStaff = false);
+    bool RequiresStaff = false,
+    SpParamPolicy ParamPolicy = SpParamPolicy.Strict);

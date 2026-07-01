@@ -40,7 +40,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       showErrorSnackBar(context, error);
       return;
     }
-    context.go('/home');
+    final redirect = GoRouterState.of(context).uri.queryParameters['redirect'];
+    if (redirect != null && redirect.isNotEmpty) {
+      context.go(redirect);
+    } else {
+      context.go('/home');
+    }
   }
 
   @override

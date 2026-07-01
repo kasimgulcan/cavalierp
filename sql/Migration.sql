@@ -27,6 +27,10 @@ GO
 PRINT '--- DROP stored procedures ---';
 GO
 
+IF OBJECT_ID(N'dbo.API_OrderRequest_Convert', N'P') IS NOT NULL DROP PROCEDURE dbo.API_OrderRequest_Convert;
+IF OBJECT_ID(N'dbo.API_OrderRequest_Update', N'P') IS NOT NULL DROP PROCEDURE dbo.API_OrderRequest_Update;
+IF OBJECT_ID(N'dbo.API_OrderRequest_Get', N'P') IS NOT NULL DROP PROCEDURE dbo.API_OrderRequest_Get;
+IF OBJECT_ID(N'dbo.API_OrderRequest_List', N'P') IS NOT NULL DROP PROCEDURE dbo.API_OrderRequest_List;
 IF OBJECT_ID(N'dbo.API_OrderRequest_Create', N'P') IS NOT NULL DROP PROCEDURE dbo.API_OrderRequest_Create;
 IF OBJECT_ID(N'dbo.API_Product_List', N'P') IS NOT NULL DROP PROCEDURE dbo.API_Product_List;
 IF OBJECT_ID(N'dbo.API_Sale_Create', N'P') IS NOT NULL DROP PROCEDURE dbo.API_Sale_Create;
@@ -615,6 +619,274 @@ BEGIN
     SELECT
         @OrderRequestId AS OrderRequestId,
         (SELECT SUM(ol.LineTotal) FROM dbo.OrderRequestLines ol WHERE ol.OrderRequestId = @OrderRequestId) AS TotalAmount;
+END
+GO
+
+PRINT '--- CREATE API_OrderRequest_List / Get / Update / Convert ---';
+GO
+
+CREATE OR ALTER PROCEDURE dbo.API_OrderRequest_List
+    @DateFrom DATE = NULL,
+    @DateTo DATE = NULL,
+    @Status NVARCHAR(20) = NULL,
+    @Page INT = 1,
+    @PageSize INT = 30
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF @Page < 1 SET @Page = 1;
+    IF @PageSize < 1 OR @PageSize > 100 SET @PageSize = 30;
+
+    SELECT
+        o.OrderRequestId,
+        o.UserId,
+        u.Email AS MemberEmail,
+        o.CurrencyId,
+        o.Customer,
+        o.Note,
+        o.Status,
+        o.CreatedAt,
+        TotalAmount = (
+            SELECT SUM(ol.LineTotal)
+            FROM dbo.OrderRequestLines ol
+            WHERE ol.OrderRequestId = o.OrderRequestId
+        ),
+        LineCount = (
+            SELECT COUNT(*)
+            FROM dbo.OrderRequestLines ol
+            WHERE ol.OrderRequestId = o.OrderRequestId
+        )
+    FROM dbo.OrderRequests o
+    INNER JOIN dbo.Users u ON u.UserId = o.UserId
+    WHERE (@DateFrom IS NULL OR CAST(o.CreatedAt AS DATE) >= @DateFrom)
+      AND (@DateTo IS NULL OR CAST(o.CreatedAt AS DATE) <= @DateTo)
+      AND (@Status IS NULL OR @Status = N'' OR o.Status = @Status)
+    ORDER BY o.CreatedAt DESC
+    OFFSET (@Page - 1) * @PageSize ROWS
+    FETCH NEXT @PageSize ROWS ONLY;
+END
+GO
+
+CREATE OR ALTER PROCEDURE dbo.API_OrderRequest_Get
+    @OrderRequestId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.OrderRequests WHERE OrderRequestId = @OrderRequestId)
+    BEGIN
+        RAISERROR(N'Sipariş talebi bulunamadı.', 16, 1);
+        RETURN;
+    END
+
+    SELECT
+        o.OrderRequestId,
+        o.UserId,
+        u.Email AS MemberEmail,
+        o.CurrencyId,
+        o.Customer,
+        o.Note,
+        o.Status,
+        o.CreatedAt,
+        TotalAmount = (
+            SELECT SUM(ol.LineTotal)
+            FROM dbo.OrderRequestLines ol
+            WHERE ol.OrderRequestId = o.OrderRequestId
+        ),
+        Lines = (
+            SELECT
+                ol.OrderRequestLineId,
+                ol.SizeId,
+                ol.Product,
+                ol.Quantity,
+                ol.UnitPrice,
+                ol.ListPrice,
+                ol.LineTotal,
+                StockQty = ISNULL(st.StockQty, 0)
+            FROM dbo.OrderRequestLines ol
+            LEFT JOIN dbo.V_SizeStock st ON st.SizeId = ol.SizeId
+            WHERE ol.OrderRequestId = o.OrderRequestId
+            FOR JSON PATH
+        )
+    FROM dbo.OrderRequests o
+    INNER JOIN dbo.Users u ON u.UserId = o.UserId
+    WHERE o.OrderRequestId = @OrderRequestId;
+END
+GO
+
+CREATE OR ALTER PROCEDURE dbo.API_OrderRequest_Update
+    @OrderRequestId INT,
+    @Customer NVARCHAR(200) = NULL,
+    @Note NVARCHAR(500) = NULL,
+    @Status NVARCHAR(20) = NULL,
+    @Lines NVARCHAR(MAX) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @CurrentStatus NVARCHAR(20);
+
+    SELECT @CurrentStatus = Status
+    FROM dbo.OrderRequests
+    WHERE OrderRequestId = @OrderRequestId;
+
+    IF @CurrentStatus IS NULL
+    BEGIN
+        RAISERROR(N'Sipariş talebi bulunamadı.', 16, 1);
+        RETURN;
+    END
+
+    IF @CurrentStatus IN (N'Converted', N'Rejected')
+    BEGIN
+        RAISERROR(N'Tamamlanmış veya reddedilmiş talepler düzenlenemez.', 16, 1);
+        RETURN;
+    END
+
+    IF @Status IS NOT NULL
+       AND @Status NOT IN (N'Pending', N'Accepted', N'Rejected')
+    BEGIN
+        RAISERROR(N'Geçersiz durum.', 16, 1);
+        RETURN;
+    END
+
+    BEGIN TRANSACTION;
+
+    UPDATE dbo.OrderRequests
+    SET
+        Customer = COALESCE(@Customer, Customer),
+        Note = COALESCE(@Note, Note),
+        Status = COALESCE(@Status, Status)
+    WHERE OrderRequestId = @OrderRequestId;
+
+    IF @Lines IS NOT NULL AND @Status <> N'Rejected'
+    BEGIN
+        DELETE FROM dbo.OrderRequestLines
+        WHERE OrderRequestId = @OrderRequestId;
+
+        INSERT INTO dbo.OrderRequestLines (OrderRequestId, SizeId, Product, Quantity, UnitPrice, ListPrice)
+        SELECT
+            @OrderRequestId,
+            j.SizeId,
+            j.Product,
+            j.Quantity,
+            j.UnitPrice,
+            j.ListPrice
+        FROM OPENJSON(@Lines)
+        WITH (
+            SizeId INT '$.SizeId',
+            Product NVARCHAR(300) '$.Product',
+            Quantity INT '$.Quantity',
+            UnitPrice DECIMAL(18, 2) '$.UnitPrice',
+            ListPrice DECIMAL(18, 2) '$.ListPrice'
+        ) AS j
+        WHERE j.Quantity > 0;
+
+        IF NOT EXISTS (SELECT 1 FROM dbo.OrderRequestLines WHERE OrderRequestId = @OrderRequestId)
+        BEGIN
+            ROLLBACK TRANSACTION;
+            RAISERROR(N'Sipariş en az bir kalem içermelidir.', 16, 1);
+            RETURN;
+        END
+    END
+
+    COMMIT TRANSACTION;
+
+    SELECT
+        @OrderRequestId AS OrderRequestId,
+        (SELECT SUM(ol.LineTotal) FROM dbo.OrderRequestLines ol WHERE ol.OrderRequestId = @OrderRequestId) AS TotalAmount;
+END
+GO
+
+CREATE OR ALTER PROCEDURE dbo.API_OrderRequest_Convert
+    @UserId INT,
+    @OrderRequestId INT,
+    @PaymentTypeId INT = NULL,
+    @Note NVARCHAR(500) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @Status NVARCHAR(20);
+    DECLARE @CurrencyId INT;
+    DECLARE @Customer NVARCHAR(200);
+    DECLARE @OrderNote NVARCHAR(500);
+    DECLARE @SaleId INT;
+
+    SELECT
+        @Status = Status,
+        @CurrencyId = CurrencyId,
+        @Customer = Customer,
+        @OrderNote = Note
+    FROM dbo.OrderRequests
+    WHERE OrderRequestId = @OrderRequestId;
+
+    IF @Status IS NULL
+    BEGIN
+        RAISERROR(N'Sipariş talebi bulunamadı.', 16, 1);
+        RETURN;
+    END
+
+    IF @Status = N'Converted'
+    BEGIN
+        RAISERROR(N'Sipariş talebi zaten satışa dönüştürülmüş.', 16, 1);
+        RETURN;
+    END
+
+    IF @Status = N'Rejected'
+    BEGIN
+        RAISERROR(N'Reddedilmiş sipariş talebi satışa dönüştürülemez.', 16, 1);
+        RETURN;
+    END
+
+    IF EXISTS (
+        SELECT 1
+        FROM dbo.OrderRequestLines ol
+        LEFT JOIN dbo.V_SizeStock st ON st.SizeId = ol.SizeId
+        WHERE ol.OrderRequestId = @OrderRequestId
+          AND ISNULL(st.StockQty, 0) < ol.Quantity
+    )
+    BEGIN
+        RAISERROR(N'Yetersiz stok. Satış tamamlanamadı.', 16, 1);
+        RETURN;
+    END
+
+    BEGIN TRANSACTION;
+
+    INSERT INTO dbo.Sales (UserId, CurrencyId, Customer, PaymentTypeId, Note, CreatedAt)
+    VALUES (
+        @UserId,
+        @CurrencyId,
+        @Customer,
+        @PaymentTypeId,
+        COALESCE(@Note, @OrderNote),
+        GETDATE()
+    );
+
+    SET @SaleId = SCOPE_IDENTITY();
+
+    INSERT INTO dbo.SaleLines (SaleId, SizeId, Product, Quantity, UnitPrice, ListPrice)
+    SELECT
+        @SaleId,
+        ol.SizeId,
+        ol.Product,
+        ol.Quantity,
+        ol.UnitPrice,
+        ol.ListPrice
+    FROM dbo.OrderRequestLines ol
+    WHERE ol.OrderRequestId = @OrderRequestId;
+
+    UPDATE dbo.OrderRequests
+    SET Status = N'Converted'
+    WHERE OrderRequestId = @OrderRequestId;
+
+    COMMIT TRANSACTION;
+
+    SELECT
+        @SaleId AS SaleId,
+        @OrderRequestId AS OrderRequestId,
+        (SELECT SUM(sl.LineTotal) FROM dbo.SaleLines sl WHERE sl.SaleId = @SaleId) AS TotalAmount;
 END
 GO
 

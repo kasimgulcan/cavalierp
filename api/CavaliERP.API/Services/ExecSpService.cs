@@ -6,6 +6,7 @@ namespace CsmStok.Api.Services;
 
 public sealed class ExecSpService(
     SpWhitelist whitelist,
+    SqlProcedureCatalog procedureCatalog,
     SqlSpExecutor executor,
     JwtTokenService jwtTokenService,
     ProductImageCatalog productImageCatalog,
@@ -16,14 +17,15 @@ public sealed class ExecSpService(
         ClaimsPrincipal? user,
         CancellationToken ct)
     {
-        if (!whitelist.TryGet(request.Sp, out var def))
+        var (found, def) = await whitelist.TryResolveAsync(request.Sp, procedureCatalog, ct);
+        if (!found || def is null)
             return (StatusCodes.Status403Forbidden, ExecSpResponse.Fail("SP not allowed."));
 
-        var paramError = whitelist.ValidateParams(def!, request.Params);
+        var paramError = whitelist.ValidateParams(def, request.Params);
         if (paramError is not null)
             return (StatusCodes.Status400BadRequest, ExecSpResponse.Fail(paramError));
 
-        if (def!.RequiresAuth && user?.Identity?.IsAuthenticated != true)
+        if (def.RequiresAuth && user?.Identity?.IsAuthenticated != true)
             return (StatusCodes.Status401Unauthorized, ExecSpResponse.Fail("Authentication required."));
 
         var spParams = new Dictionary<string, object?>(request.Params ?? []);

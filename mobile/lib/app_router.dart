@@ -10,25 +10,50 @@ import 'features/sale/checkout_screen.dart';
 import 'features/sale/order_checkout_screen.dart';
 import 'features/sale/order_confirmed_screen.dart';
 import 'features/sale/home_shell.dart';
+import 'features/sale/order_detail_screen.dart';
 import 'features/sale/sale_summary_screen.dart';
+
+const _authRequiredPrefixes = [
+  '/checkout',
+  '/order-checkout',
+  '/order-confirmed',
+  '/sale-summary',
+  '/orders/',
+];
+
+bool _requiresAuth(String location) =>
+    _authRequiredPrefixes.any(location.startsWith);
+
+String _loginRedirect(String returnPath) {
+  final encoded = Uri.encodeComponent(returnPath);
+  return '/login?redirect=$encoded';
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authStateProvider);
 
   return GoRouter(
     initialLocation:
-        ScreenshotConfig.enabled ? ScreenshotConfig.route : '/login',
+        ScreenshotConfig.enabled ? ScreenshotConfig.route : '/home',
     redirect: (context, state) {
       final isLoading = auth.isLoading;
       if (isLoading) return null;
 
       final loggedIn = auth.valueOrNull == true;
-      final onAuth = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
-      final isPublic = onAuth || state.matchedLocation == '/privacy';
+      final location = state.matchedLocation;
+      final onAuth = location == '/login' || location == '/register';
+      final isPublic =
+          onAuth || location == '/privacy' || location == '/home';
 
-      if (!loggedIn && !isPublic) return '/login';
-      if (loggedIn && onAuth) return '/home';
+      if (!loggedIn && _requiresAuth(location)) {
+        return _loginRedirect(state.uri.path);
+      }
+      if (!loggedIn && !isPublic) return '/home';
+      if (loggedIn && onAuth) {
+        final redirect = state.uri.queryParameters['redirect'];
+        if (redirect != null && redirect.isNotEmpty) return redirect;
+        return '/home';
+      }
       return null;
     },
     routes: [
@@ -48,6 +73,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sale-summary',
         builder: (context, state) =>
             SaleSummaryScreen(sale: state.extra! as Map<String, dynamic>),
+      ),
+      GoRoute(
+        path: '/orders/:id',
+        builder: (context, state) => OrderDetailScreen(
+          orderRequestId: int.parse(state.pathParameters['id']!),
+        ),
       ),
     ],
   );

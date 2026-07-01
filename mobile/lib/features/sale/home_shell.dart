@@ -4,6 +4,7 @@ import '../../core/config/screenshot_config.dart';
 import '../auth/profile_screen.dart';
 import '../auth/user_profile_provider.dart';
 import 'cart_screen.dart';
+import 'orders_list_screen.dart';
 import 'products_list_screen.dart';
 import 'scanner_screen.dart';
 
@@ -28,6 +29,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final pages = isStaff
         ? const [
             ProductsListScreen(),
+            OrdersListScreen(),
             CartScreen(),
             ScannerScreen(),
             ProfileScreen(),
@@ -41,6 +43,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final destinations = isStaff
         ? const [
             NavigationDestination(icon: Icon(Icons.storefront), label: 'Ürünler'),
+            NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Siparişler'),
             NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Sepet'),
             NavigationDestination(icon: Icon(Icons.qr_code_scanner), label: 'Barkod'),
             NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),

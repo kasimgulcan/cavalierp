@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../auth/auth_provider.dart';
 import '../auth/user_profile_provider.dart';
 import 'cart_provider.dart';
 
@@ -42,7 +43,18 @@ class CartScreen extends ConsumerWidget {
             FilledButton(
               onPressed: lines.isEmpty
                   ? null
-                  : () => context.push(isStaff ? '/checkout' : '/order-checkout'),
+                  : () {
+                      final loggedIn =
+                          ref.read(authStateProvider).valueOrNull ?? false;
+                      final target =
+                          isStaff ? '/checkout' : '/order-checkout';
+                      if (!loggedIn) {
+                        final encoded = Uri.encodeComponent(target);
+                        context.push('/login?redirect=$encoded');
+                        return;
+                      }
+                      context.push(target);
+                    },
               child: Text(isStaff ? 'Satışı Tamamla' : 'Talep Gönder'),
             ),
           ],
