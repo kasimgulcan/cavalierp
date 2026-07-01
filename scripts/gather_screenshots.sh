@@ -9,13 +9,14 @@ mkdir -p "$OUT"
 for dir in \
   "$ROOT/mobile/screenshots" \
   "$ROOT/mobile/integration_test/screenshots" \
-  "$ROOT/mobile/build/integration_test" \
-  "$OUT"
+  "$ROOT/mobile/build/integration_test"
 do
   [ -d "$dir" ] || continue
   find "$dir" -maxdepth 4 -name '*.png' -print0 2>/dev/null \
     | while IFS= read -r -d '' f; do
-        cp -f "$f" "$OUT/$(basename "$f")"
+        dest="$OUT/$(basename "$f")"
+        [ "$f" -ef "$dest" ] && continue
+        cp -f "$f" "$dest"
       done
 done
 
