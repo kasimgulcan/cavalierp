@@ -9,7 +9,8 @@ PASSWORD="${4:-}"
 LOG="${5:-flutter-drive.log}"
 OUT_DIR="${6:-collected-screenshots}"
 
-cd "$(dirname "$0")/../mobile"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT/mobile"
 mkdir -p "$OUT_DIR"
 : > "$LOG"
 
@@ -33,10 +34,10 @@ echo "Waiting for screenshots (max ~11 min)..."
 found=0
 for i in $(seq 1 330); do
   count=$(screenshot_count)
-  if [ "$count" -ge 3 ]; then
+  if [ "$count" -ge 2 ]; then
     echo "Found $count screenshot(s) after ~$((i * 2))s — stopping drive."
     found=1
-    sleep 3
+    sleep 10
     break
   fi
   if ! kill -0 "$DRIVE_PID" 2>/dev/null; then
@@ -51,14 +52,12 @@ sleep 2
 kill -TERM "$DRIVE_PID" 2>/dev/null || true
 wait "$DRIVE_PID" 2>/dev/null || true
 
-count=$(screenshot_count)
-echo "Total screenshots found: $count"
-if [ "$count" -lt 1 ] && [ "$found" -eq 0 ]; then
+bash "$ROOT/scripts/gather_screenshots.sh" "$OUT_DIR"
+final=$(find "$OUT_DIR" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
+echo "Total screenshots in output: $final"
+
+if [ "$final" -lt 1 ]; then
   echo "Drive log tail:"
-  tail -40 "$LOG" || true
+  tail -50 "$LOG" || true
   exit 1
 fi
-
-# Copy into output dir
-find screenshots integration_test/screenshots build/integration_test -name '*.png' 2>/dev/null \
-  | while read -r f; do cp -n "$f" "$OUT_DIR/" 2>/dev/null || cp "$f" "$OUT_DIR/"; done

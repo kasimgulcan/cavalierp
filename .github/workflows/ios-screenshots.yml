@@ -8,6 +8,9 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
 
+    env:
+      SCREENSHOT_OUT: ${{ github.workspace }}/collected-screenshots
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -92,6 +95,7 @@ jobs:
           SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
           SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
         run: |
+          mkdir -p "$SCREENSHOT_OUT"
           APP_PATH=$(find mobile/build/ios/iphonesimulator -name "Runner.app" -type d | head -1)
           bash scripts/ios_drive_screenshots.sh \
             "$DEVICE_ID" \
@@ -99,16 +103,25 @@ jobs:
             "$SCREENSHOT_EMAIL" \
             "$SCREENSHOT_PASSWORD" \
             "$GITHUB_WORKSPACE/flutter-drive.log" \
-            "$GITHUB_WORKSPACE/collected-screenshots"
+            "$SCREENSHOT_OUT"
+
+      - name: Count screenshots after drive
+        id: after_drive
+        if: always()
+        run: |
+          bash scripts/gather_screenshots.sh "$SCREENSHOT_OUT"
+          count=$(find "$SCREENSHOT_OUT" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Screenshot count after drive: $count"
 
       - name: Fallback — login screenshot only
         id: fallback
-        if: steps.drive.outcome != 'success'
+        if: always() && (steps.drive.outcome != 'success' || steps.after_drive.outputs.count < '2')
         timeout-minutes: 12
         working-directory: mobile
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/collected-screenshots"
+          mkdir -p "$SCREENSHOT_OUT"
           LOG="$GITHUB_WORKSPACE/flutter-run.log"
           APP_PATH=$(find build/ios/iphonesimulator -name "Runner.app" -type d | head -1)
           : > "$LOG"
@@ -121,46 +134,18 @@ jobs:
           echo "RUN_PID=$RUN_PID" >> "$GITHUB_ENV"
           bash "$GITHUB_WORKSPACE/scripts/ios_wait_and_screenshot.sh" \
             "$DEVICE_ID" \
-            "$GITHUB_WORKSPACE/collected-screenshots" \
+            "$SCREENSHOT_OUT" \
             01-login \
             "$LOG"
           kill -INT "$RUN_PID" 2>/dev/null || true
           wait "$RUN_PID" 2>/dev/null || true
+          bash "$GITHUB_WORKSPACE/scripts/gather_screenshots.sh" "$SCREENSHOT_OUT"
 
-      - name: Cleanup Flutter processes
+      - name: Collect and validate screenshots
         if: always()
         run: |
-          if [ -n "${RUN_PID:-}" ]; then
-            kill -INT "$RUN_PID" 2>/dev/null || true
-          fi
-          pkill -f "flutter run" 2>/dev/null || true
-          pkill -f "flutter drive" 2>/dev/null || true
-          pkill -f "flutter_tools" 2>/dev/null || true
-
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: flutter-logs
-          path: |
-            flutter-drive.log
-            flutter-run.log
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Collect screenshot files
-        if: always()
-        run: |
-          mkdir -p collected-screenshots
-          for dir in \
-            mobile/screenshots \
-            mobile/integration_test/screenshots \
-            mobile/build/integration_test \
-            collected-screenshots
-          do
-            [ -d "$dir" ] && find "$dir" -maxdepth 3 -name '*.png' -exec cp -n {} collected-screenshots/ \; 2>/dev/null || true
-          done
-          cd collected-screenshots
+          bash scripts/gather_screenshots.sh "$SCREENSHOT_OUT"
+          cd "$SCREENSHOT_OUT"
           ls -la
           ok=0
           count=0
@@ -176,6 +161,9 @@ jobs:
             echo "No valid screenshots (need PNG >= 80 KB with visible UI)."
             exit 1
           fi
+          if [ "$count" -lt 3 ]; then
+            echo "::warning::Only $count screenshot(s) captured; App Store prefers 3-5."
+          fi
 
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
@@ -185,3 +173,24 @@ jobs:
           path: collected-screenshots/
           retention-days: 30
           if-no-files-found: warn
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-logs
+          path: |
+            flutter-drive.log
+            flutter-run.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Cleanup Flutter processes
+        if: always()
+        run: |
+          if [ -n "${RUN_PID:-}" ]; then
+            kill -INT "$RUN_PID" 2>/dev/null || true
+          fi
+          pkill -f "flutter run" 2>/dev/null || true
+          pkill -f "flutter drive" 2>/dev/null || true
+          pkill -f "flutter_tools" 2>/dev/null || true
