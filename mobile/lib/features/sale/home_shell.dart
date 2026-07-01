@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/config/screenshot_config.dart';
 import '../auth/profile_screen.dart';
 import '../auth/user_profile_provider.dart';
 import 'cart_screen.dart';
@@ -14,11 +15,16 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  int _index = 0;
+  late int _index = ScreenshotConfig.enabled && ScreenshotConfig.route == '/home'
+      ? ScreenshotConfig.tabIndex
+      : 0;
 
   @override
   Widget build(BuildContext context) {
-    final isStaff = ref.watch(isStaffProvider);
+    // Tour mode: profile API may lag; staff layout keeps tab indices stable.
+    final isStaff = ScreenshotConfig.enabled && ScreenshotConfig.autoLogin
+        ? true
+        : ref.watch(isStaffProvider);
     final pages = isStaff
         ? const [
             ProductsListScreen(),

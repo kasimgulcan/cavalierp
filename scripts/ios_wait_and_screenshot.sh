@@ -1,36 +1,52 @@
 #!/usr/bin/env bash
-# Wait for Flutter to paint on iOS Simulator, then capture PNG via simctl.
+# Wait for UI to render on iOS Simulator, then capture PNG via simctl.
 set -euo pipefail
 
 DEVICE_ID="${1:?device udid required}"
 OUT_DIR="${2:-collected-screenshots}"
 NAME="${3:-screenshot}"
-LOG="${4:?log file path required}"
+LOG="${4:-}"
+MODE="${5:-flutter}"
+AUTO_LOGIN="${6:-false}"
 
 mkdir -p "$OUT_DIR"
-touch "$LOG"
 
-echo "Waiting for Flutter to start (log: $LOG)..."
-ready=0
-for i in $(seq 1 180); do
-  if [ -s "$LOG" ] && grep -qE \
-    "Flutter run key commands|Debug service listening on|Syncing files to device|VM Service|A Dart VM Service" \
-    "$LOG" 2>/dev/null; then
-    ready=1
-    echo "Flutter ready after ~$((i * 2))s"
-    break
+if [ "$MODE" = "simctl" ]; then
+  if [ "$AUTO_LOGIN" = "true" ]; then
+    echo "Waiting 50s for auto-login + API data..."
+    sleep 50
+  else
+    echo "Waiting 22s for auth screen render..."
+    sleep 22
   fi
-  sleep 2
-done
+else
+  echo "Waiting for Flutter to start (log: $LOG)..."
+  ready=0
+  for i in $(seq 1 180); do
+    if [ -s "$LOG" ] && grep -qE \
+      "Flutter run key commands|Debug service listening on|Syncing files to device|VM Service|A Dart VM Service" \
+      "$LOG" 2>/dev/null; then
+      ready=1
+      echo "Flutter ready after ~$((i * 2))s"
+      break
+    fi
+    sleep 2
+  done
 
-if [ "$ready" -ne 1 ]; then
-  echo "Flutter did not report ready within 360s. Log tail:"
-  tail -60 "$LOG" 2>/dev/null || echo "(log empty or missing)"
-  exit 1
+  if [ "$ready" -ne 1 ]; then
+    echo "Flutter did not report ready within 360s. Log tail:"
+    tail -60 "$LOG" 2>/dev/null || echo "(log empty or missing)"
+    exit 1
+  fi
+
+  if [ "$AUTO_LOGIN" = "true" ]; then
+    echo "Waiting 50s for auto-login + API data..."
+    sleep 50
+  else
+    echo "Waiting 22s for first frame..."
+    sleep 22
+  fi
 fi
-
-echo "Waiting for first frame..."
-sleep 25
 
 osascript -e 'tell application "Simulator" to activate' 2>/dev/null || true
 sleep 3
@@ -47,7 +63,9 @@ if [ "$size" -lt 80000 ]; then
   xcrun simctl io "$DEVICE_ID" screenshot "${OUT_DIR}/${NAME}-retry.png"
   size=$(stat -f%z "${OUT_DIR}/${NAME}-retry.png" 2>/dev/null || stat -c%s "${OUT_DIR}/${NAME}-retry.png")
   echo "Retry screenshot: ${size} bytes"
-  if [ "$size" -lt 80000 ]; then
+  if [ "$size" -ge 80000 ]; then
+    mv -f "${OUT_DIR}/${NAME}-retry.png" "$out"
+  else
     echo "Screenshot still too small — UI may not have rendered."
     exit 1
   fi

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/config/screenshot_config.dart';
 import '../../core/models/json_field.dart';
 import '../../core/network/api_error.dart';
 import '../../core/network/sp_client.dart';
@@ -53,6 +54,12 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
   }
 
   Future<void> _bootstrap() async {
+    if (ScreenshotConfig.autoLogin &&
+        ScreenshotConfig.email.isNotEmpty &&
+        ScreenshotConfig.password.isNotEmpty) {
+      await login(ScreenshotConfig.email, ScreenshotConfig.password);
+      return;
+    }
     final token = await _tokenStorage.getAccessToken();
     if (token == null || token.isEmpty) {
       state = const AsyncValue.data(false);

@@ -6,7 +6,7 @@ on:
 jobs:
   screenshots:
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
 
     env:
       SCREENSHOT_OUT: ${{ github.workspace }}/collected-screenshots
@@ -83,61 +83,25 @@ jobs:
           open -a Simulator || true
           flutter devices
 
-      - name: Build iOS simulator app
-        working-directory: mobile
-        run: flutter build ios --simulator --debug
-
-      - name: Capture screenshots with flutter test
-        id: screenshot_test
-        timeout-minutes: 20
-        continue-on-error: true
+      - name: Capture screenshot tour
+        id: tour
+        timeout-minutes: 40
         env:
           SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
           SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
         run: |
           mkdir -p "$SCREENSHOT_OUT"
-          bash scripts/ios_test_screenshots.sh \
+          bash scripts/ios_screenshot_tour.sh \
             "$DEVICE_ID" \
             "$SCREENSHOT_EMAIL" \
             "$SCREENSHOT_PASSWORD" \
-            "$GITHUB_WORKSPACE/flutter-test.log" \
             "$SCREENSHOT_OUT"
 
-      - name: Count screenshots after test
-        id: after_test
+      - name: Cleanup Flutter processes
         if: always()
         run: |
-          bash scripts/gather_screenshots.sh "$SCREENSHOT_OUT"
-          count=$(find "$SCREENSHOT_OUT" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
-          echo "count=$count" >> "$GITHUB_OUTPUT"
-          echo "Screenshot count after test: $count"
-
-      - name: Fallback — login screenshot only
-        id: fallback
-        if: always() && (steps.screenshot_test.outcome != 'success' || steps.after_test.outputs.count < '2')
-        timeout-minutes: 12
-        working-directory: mobile
-        run: |
-          set -euo pipefail
-          mkdir -p "$SCREENSHOT_OUT"
-          LOG="$GITHUB_WORKSPACE/flutter-run.log"
-          APP_PATH=$(find build/ios/iphonesimulator -name "Runner.app" -type d | head -1)
-          : > "$LOG"
-          flutter run -d "$DEVICE_ID" \
-            --use-application-binary="$APP_PATH" \
-            --dart-define=SCREENSHOT_EMAIL="${{ secrets.SCREENSHOT_DEMO_EMAIL }}" \
-            --dart-define=SCREENSHOT_PASSWORD="${{ secrets.SCREENSHOT_DEMO_PASSWORD }}" \
-            >> "$LOG" 2>&1 &
-          RUN_PID=$!
-          echo "RUN_PID=$RUN_PID" >> "$GITHUB_ENV"
-          bash "$GITHUB_WORKSPACE/scripts/ios_wait_and_screenshot.sh" \
-            "$DEVICE_ID" \
-            "$SCREENSHOT_OUT" \
-            01-login \
-            "$LOG"
-          kill -INT "$RUN_PID" 2>/dev/null || true
-          wait "$RUN_PID" 2>/dev/null || true
-          bash "$GITHUB_WORKSPACE/scripts/gather_screenshots.sh" "$SCREENSHOT_OUT"
+          pkill -f "flutter run" 2>/dev/null || true
+          pkill -f "flutter_tools" 2>/dev/null || true
 
       - name: Collect and validate screenshots
         if: always()
@@ -177,27 +141,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flutter-logs
-          path: |
-            flutter-test.log
-            flutter-run.log
+          path: collected-screenshots/*.log
           retention-days: 7
           if-no-files-found: ignore
-
-      - name: Upload test log when test fails
-        if: steps.screenshot_test.outcome != 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: flutter-test-log
-          path: flutter-test.log
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Cleanup Flutter processes
-        if: always()
-        run: |
-          if [ -n "${RUN_PID:-}" ]; then
-            kill -INT "$RUN_PID" 2>/dev/null || true
-          fi
-          pkill -f "flutter run" 2>/dev/null || true
-          pkill -f "flutter drive" 2>/dev/null || true
-          pkill -f "flutter_tools" 2>/dev/null || true

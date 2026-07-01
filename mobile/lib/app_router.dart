@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'core/config/screenshot_config.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/privacy_policy_screen.dart';
@@ -15,7 +16,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authStateProvider);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation:
+        ScreenshotConfig.enabled ? ScreenshotConfig.route : '/login',
     redirect: (context, state) {
       final isLoading = auth.isLoading;
       if (isLoading) return null;
