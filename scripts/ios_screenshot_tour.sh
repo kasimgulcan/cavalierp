@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Capture App Store screenshots: first screen does a full flutter run (native
-# build), subsequent screens reuse the resulting Runner.app via
-# --use-application-binary and only recompile the Dart side per --dart-define
-# (fast, and --dart-define is honored correctly since it's applied at Dart
-# compile time on every `flutter run`, regardless of binary reuse).
+# Capture App Store screenshots: build the native Runner.app once, then run each
+# screen via `flutter run --use-application-binary` (skips the slow Xcode step)
+# with its own --dart-define values. --dart-define is applied at Dart compile
+# time on every flutter run, so per-screen route/tab values are honored even
+# though the native binary is shared.
 set -euo pipefail
 
 DEVICE_ID="${1:?device udid required}"
@@ -20,7 +20,19 @@ cd "$ROOT/mobile"
 # unattended system permission dialog during the tour.
 xcrun simctl privacy "$DEVICE_ID" grant camera "$BUNDLE_ID" 2>/dev/null || true
 
-APP_PATH=""
+# Build the native app shell once (slow Xcode step). Every capture then reuses
+# it via --use-application-binary and only recompiles the Dart side per screen
+# (fast, and --dart-define is applied at Dart compile time on every flutter run,
+# so the values are honored despite the shared binary).
+echo "=== Building iOS simulator app shell (once) ==="
+flutter build ios --simulator --debug 2>&1 | tail -30 || true
+
+APP_PATH=$(find "$ROOT/mobile/build/ios/iphonesimulator" -name "Runner.app" -type d | head -1)
+if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+  echo "Runner.app not found after build"
+  exit 1
+fi
+echo "Using prebuilt app: $APP_PATH"
 
 capture() {
   local name="$1"
@@ -32,12 +44,7 @@ capture() {
   echo "=== Capturing $name (route=$route tab=$tab auto_login=$auto_login) ==="
   : > "$log"
 
-  local extra_args=()
-  if [ -n "$APP_PATH" ]; then
-    extra_args+=(--use-application-binary="$APP_PATH")
-  fi
-
-  flutter run -d "$DEVICE_ID" "${extra_args[@]}" \
+  flutter run -d "$DEVICE_ID" --use-application-binary="$APP_PATH" \
     --dart-define=SCREENSHOT_ROUTE="$route" \
     --dart-define=SCREENSHOT_TAB="$tab" \
     --dart-define=SCREENSHOT_AUTO_LOGIN="$auto_login" \
@@ -60,11 +67,6 @@ capture() {
   kill -INT "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   sleep 2
-
-  if [ -z "$APP_PATH" ]; then
-    APP_PATH=$(find "$ROOT/mobile/build/ios/iphonesimulator" -name "Runner.app" -type d | head -1)
-    echo "Resolved prebuilt app for reuse: $APP_PATH"
-  fi
 }
 
 failed=0
