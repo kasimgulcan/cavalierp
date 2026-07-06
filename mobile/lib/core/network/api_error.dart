@@ -25,8 +25,15 @@ String formatApiError(Object error) {
   return error.toString();
 }
 
+void showAppSnackBar(BuildContext context, SnackBar snackBar) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.clearSnackBars();
+  messenger.showSnackBar(snackBar);
+}
+
 void showErrorSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
+  showAppSnackBar(
+    context,
     SnackBar(
       content: Text(message),
       duration: const Duration(seconds: 8),

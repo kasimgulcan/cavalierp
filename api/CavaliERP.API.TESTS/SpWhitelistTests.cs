@@ -124,19 +124,39 @@ public class SpWhitelistTests
     }
 
     [Fact]
+    public async Task TryResolve_AuthChangePassword_RequiresAuthAndUserId()
+    {
+        var whitelist = CreateWhitelist();
+
+        var (found, def) = await whitelist.TryResolveAsync(
+            "Auth.ChangePassword",
+            EmptyCatalog());
+        Assert.True(found);
+        Assert.Equal("API_Auth_ChangePassword", def!.SqlName);
+        Assert.True(def.RequiresAuth);
+        Assert.True(def.RequiresUserId);
+        Assert.Null(
+            whitelist.ValidateParams(def, new Dictionary<string, object?>
+            {
+                ["CurrentPassword"] = "old",
+                ["NewPassword"] = "new",
+            }));
+    }
+
+    [Fact]
     public void ValidateParams_ExtraParam_ReturnsErrorForStrictAuth()
     {
         var whitelist = CreateWhitelist();
         var def = new SpDefinition(
             "Auth.Login",
             "API_Auth_Login",
-            new HashSet<string> { "Email", "Password" },
+            new HashSet<string> { "Username", "Password" },
             false,
             false);
 
         var error = whitelist.ValidateParams(def, new Dictionary<string, object?>
         {
-            ["Email"] = "a@b.com",
+            ["Username"] = "demo_user",
             ["Password"] = "secret",
             ["UserId"] = 1,
         });

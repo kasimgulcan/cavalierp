@@ -1,6 +1,9 @@
 namespace CsmStok.Api.Services;
 
-public sealed class ProductImageCatalog(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+public sealed class ProductImageCatalog(
+    IHttpClientFactory httpClientFactory,
+    IConfiguration configuration,
+    ILogger<ProductImageCatalog> logger)
 {
     public const string HttpClientName = "ProductImageCatalog";
 
@@ -8,16 +11,44 @@ public sealed class ProductImageCatalog(IHttpClientFactory httpClientFactory, IC
     private Dictionary<string, string>? _cache;
     private DateTime _expiresAtUtc = DateTime.MinValue;
 
-    public async Task<IReadOnlyDictionary<string, string>> GetImagesAsync(CancellationToken ct = default)
+    public IReadOnlyDictionary<string, string>? TryGetCached()
     {
         if (_cache is not null && DateTime.UtcNow < _expiresAtUtc)
             return _cache;
 
+        return null;
+    }
+
+    public void ScheduleRefreshIfStale()
+    {
+        if (TryGetCached() is not null)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await GetImagesAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Background product image feed refresh failed.");
+            }
+        });
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> GetImagesAsync(CancellationToken ct = default)
+    {
+        var cached = TryGetCached();
+        if (cached is not null)
+            return cached;
+
         await _refreshLock.WaitAsync(ct);
         try
         {
-            if (_cache is not null && DateTime.UtcNow < _expiresAtUtc)
-                return _cache;
+            cached = TryGetCached();
+            if (cached is not null)
+                return cached;
 
             var feedUrl = configuration["ProductImages:FeedUrl"]
                 ?? "https://www.cavaliersanmarco.it/xml/wc6srwwper";
@@ -40,11 +71,11 @@ public sealed class ProductImageCatalog(IHttpClientFactory httpClientFactory, IC
 
     public static string? ResolveImageUrl(
         IReadOnlyDictionary<string, string> images,
-        string? variantCode)
+        string? productCode)
     {
-        if (string.IsNullOrWhiteSpace(variantCode))
+        if (string.IsNullOrWhiteSpace(productCode))
             return null;
 
-        return images.TryGetValue(variantCode.Trim(), out var url) ? url : null;
+        return images.TryGetValue(productCode.Trim(), out var url) ? url : null;
     }
 }

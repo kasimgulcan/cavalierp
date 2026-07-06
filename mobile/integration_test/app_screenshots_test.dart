@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:csm_stok_mobile/main.dart' as app;
+import 'package:cavalierp/main.dart' as app;
 
+const _username = String.fromEnvironment('SCREENSHOT_USERNAME');
 const _email = String.fromEnvironment('SCREENSHOT_EMAIL');
 const _password = String.fromEnvironment('SCREENSHOT_PASSWORD');
+
+String get _loginUsername =>
+    _username.isNotEmpty ? _username : _email;
 
 Future<void> _screenshot(
   IntegrationTestWidgetsFlutterBinding binding,
@@ -16,7 +20,10 @@ Future<void> _screenshot(
 }
 
 /// Avoid pumpAndSettle — loading spinners and streams never "settle".
-Future<void> _pause(WidgetTester tester, [Duration wait = const Duration(seconds: 3)]) async {
+Future<void> _pause(
+  WidgetTester tester, [
+  Duration wait = const Duration(seconds: 3),
+]) async {
   await tester.pump(wait);
   await Future<void>.delayed(wait);
 }
@@ -37,13 +44,13 @@ void main() {
     await _pause(tester, const Duration(seconds: 2));
     await _screenshot(binding, '02-register');
 
-    if (_email.isEmpty || _password.isEmpty) return;
+    if (_loginUsername.isEmpty || _password.isEmpty) return;
 
     await _restartApp(tester);
 
     final fields = find.byType(TextFormField);
     if (fields.evaluate().length < 2) return;
-    await tester.enterText(fields.at(0), _email);
+    await tester.enterText(fields.at(0), _loginUsername);
     await tester.enterText(fields.at(1), _password);
     await tester.tap(find.text('Giriş Yap'));
     // API login — fixed wait instead of pumpAndSettle on loading spinner.
@@ -57,8 +64,8 @@ void main() {
     await _pause(tester, const Duration(seconds: 2));
     await _screenshot(binding, '04-cart');
 
-    if (find.text('Barkod').evaluate().isNotEmpty) {
-      await tester.tap(find.text('Barkod'));
+    if (find.byType(FloatingActionButton).evaluate().isNotEmpty) {
+      await tester.tap(find.byType(FloatingActionButton));
       await _pause(tester, const Duration(seconds: 2));
       await _screenshot(binding, '05-scanner');
     }

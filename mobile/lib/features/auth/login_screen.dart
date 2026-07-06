@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_error.dart';
 import 'auth_provider.dart';
+import 'username_validator.dart';
 import 'widgets/auth_page_layout.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -14,14 +15,15 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _email = TextEditingController();
+  final _username = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;
   bool _obscurePassword = true;
+  String? _loginError;
 
   @override
   void dispose() {
-    _email.dispose();
+    _username.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -30,13 +32,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (!mounted) return;
 
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loginError = null;
+    });
     final error = await ref.read(authStateProvider.notifier).login(
-          _email.text.trim(),
+          _username.text.trim(),
           _password.text,
         );
     if (!mounted) return;
-    setState(() => _loading = false);
+    setState(() {
+      _loading = false;
+      _loginError = error;
+    });
 
     if (error != null) {
       showErrorSnackBar(context, error);
@@ -91,24 +99,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 24),
             TextFormField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
+              controller: _username,
+              keyboardType: TextInputType.text,
               textInputAction: TextInputAction.next,
-              autofillHints: const [AutofillHints.email],
+              autofillHints: const [AutofillHints.username],
+              autocorrect: false,
               decoration: InputDecoration(
-                labelText: 'E-posta',
-                hintText: 'ornek@sirket.com',
-                prefixIcon: const Icon(Icons.mail_outline_rounded),
+                labelText: 'Kullanıcı adı',
+                prefixIcon: const Icon(Icons.person_outline_rounded),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              validator: (value) {
-                final email = value?.trim() ?? '';
-                if (email.isEmpty) return 'E-posta gerekli';
-                if (!email.contains('@')) return 'Geçerli bir e-posta girin';
-                return null;
-              },
+              validator: validateUsername,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -134,11 +137,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) return 'Şifre gerekli';
-                return null;
-              },
+              validator: validatePassword,
             ),
+            if (_loginError != null) ...[
+              const SizedBox(height: 16),
+              Material(
+                color: colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.error_outline_rounded,
+                        size: 20,
+                        color: colorScheme.onErrorContainer,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _loginError!,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 28),
             AuthPrimaryButton(
               label: 'Giriş Yap',

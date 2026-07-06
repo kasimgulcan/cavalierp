@@ -7,4 +7,5 @@ public sealed record SpDefinition(
     bool RequiresAuth,
     bool RequiresUserId,
     bool RequiresStaff = false,
-    SpParamPolicy ParamPolicy = SpParamPolicy.Strict);
+    SpParamPolicy ParamPolicy = SpParamPolicy.Strict,
+    bool InlineHandler = false);

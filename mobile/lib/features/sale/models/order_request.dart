@@ -12,16 +12,26 @@ class OrderRequestLine {
     required this.listPrice,
     this.lineTotal,
     this.stockQty,
+    this.productCode,
+    this.styleName,
+    this.color,
+    this.sizeLabel,
+    this.imageUrl,
   });
 
   final int? orderRequestLineId;
   final int sizeId;
   final String product;
-  int quantity;
+  final int quantity;
   final double unitPrice;
   final double listPrice;
   final double? lineTotal;
   final int? stockQty;
+  final String? productCode;
+  final String? styleName;
+  final String? color;
+  final String? sizeLabel;
+  final String? imageUrl;
 
   double get computedTotal => quantity * unitPrice;
 
@@ -35,6 +45,11 @@ class OrderRequestLine {
       listPrice: json.doubleField('ListPrice') ?? 0,
       lineTotal: json.doubleField('LineTotal'),
       stockQty: json.intField('StockQty'),
+      productCode: json.stringField('ProductCode'),
+      styleName: json.stringField('StyleName'),
+      color: json.stringField('Color'),
+      sizeLabel: json.stringField('Size'),
+      imageUrl: json.stringField('ImageUrl'),
     );
   }
 
@@ -46,7 +61,11 @@ class OrderRequestLine {
         'ListPrice': listPrice,
       };
 
-  OrderRequestLine copyWith({int? quantity}) => OrderRequestLine(
+  OrderRequestLine copyWith({
+    int? quantity,
+    String? imageUrl,
+  }) =>
+      OrderRequestLine(
         orderRequestLineId: orderRequestLineId,
         sizeId: sizeId,
         product: product,
@@ -55,6 +74,11 @@ class OrderRequestLine {
         listPrice: listPrice,
         lineTotal: lineTotal,
         stockQty: stockQty,
+        productCode: productCode,
+        styleName: styleName,
+        color: color,
+        sizeLabel: sizeLabel,
+        imageUrl: imageUrl ?? this.imageUrl,
       );
 }
 
@@ -117,6 +141,11 @@ class OrderRequestDetail {
     this.createdAt,
     this.totalAmount,
     this.currencyId,
+    this.convertedSaleId,
+    this.convertedSaleDiscountPercent,
+    this.convertedSaleDiscountFixedAmount,
+    this.convertedSaleSubtotalAmount,
+    this.convertedSaleNetTotalAmount,
     required this.lines,
   });
 
@@ -128,9 +157,21 @@ class OrderRequestDetail {
   final DateTime? createdAt;
   final double? totalAmount;
   final int? currencyId;
+  final int? convertedSaleId;
+  final double? convertedSaleDiscountPercent;
+  final double? convertedSaleDiscountFixedAmount;
+  final double? convertedSaleSubtotalAmount;
+  final double? convertedSaleNetTotalAmount;
   List<OrderRequestLine> lines;
 
   bool get isEditable => status != 'Converted' && status != 'Rejected';
+
+  bool get canConvertOrReject => isEditable;
+
+  String get displayName =>
+      (customer != null && customer!.trim().isNotEmpty)
+          ? customer!.trim()
+          : memberEmail;
 
   double get computedTotal =>
       lines.fold(0, (sum, line) => sum + line.computedTotal);
@@ -166,6 +207,15 @@ class OrderRequestDetail {
       createdAt: createdAt,
       totalAmount: json.doubleField('TotalAmount'),
       currencyId: json.intField('CurrencyId'),
+      convertedSaleId: json.intField('ConvertedSaleId'),
+      convertedSaleDiscountPercent:
+          json.doubleField('ConvertedSaleDiscountPercent'),
+      convertedSaleDiscountFixedAmount:
+          json.doubleField('ConvertedSaleDiscountFixedAmount'),
+      convertedSaleSubtotalAmount:
+          json.doubleField('ConvertedSaleSubtotalAmount'),
+      convertedSaleNetTotalAmount:
+          json.doubleField('ConvertedSaleNetTotal'),
       lines: lines,
     );
   }
@@ -173,7 +223,7 @@ class OrderRequestDetail {
 
 String orderStatusLabel(String status) => switch (status) {
       'Pending' => 'Bekliyor',
-      'Accepted' => 'Onaylandı',
+      'Accepted' => 'Bekliyor',
       'Rejected' => 'Reddedildi',
       'Converted' => 'Tamamlandı',
       _ => status,

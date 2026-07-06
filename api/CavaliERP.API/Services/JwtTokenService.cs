@@ -9,7 +9,7 @@ namespace CsmStok.Api.Services;
 
 public sealed class JwtTokenService(IConfiguration configuration)
 {
-    public TokenResult CreateTokens(int userId, string email, string role = "Member")
+    public TokenResult CreateTokens(int userId, string username, string role = "Member")
     {
         var jwt = configuration.GetSection("Jwt");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["SigningKey"]!));
@@ -18,7 +18,7 @@ public sealed class JwtTokenService(IConfiguration configuration)
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString()),
-            new(ClaimTypes.Email, email),
+            new(ClaimTypes.Name, username),
             new(ClaimTypes.Role, role),
             new("role", role),
         };

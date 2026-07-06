@@ -4,6 +4,7 @@ import '../../core/models/json_field.dart';
 import '../../core/network/sp_client.dart';
 import '../auth/auth_provider.dart';
 import 'models/order_request.dart';
+import 'order_request_images.dart';
 
 const kOrderPageSize = 30;
 
@@ -70,7 +71,27 @@ String? _formatDate(DateTime? date) {
 
 final orderListProvider = StateNotifierProvider.autoDispose
     .family<OrderListNotifier, OrderListState, OrderListFilter>((ref, filter) {
-  final notifier = OrderListNotifier(ref.watch(spClientProvider), filter);
+  final notifier = OrderListNotifier(
+    ref.watch(spClientProvider),
+    filter,
+    listAlias: 'OrderRequest.List',
+  );
+  ref.listen(authStateProvider, (prev, next) {
+    if (next.valueOrNull == true && prev?.valueOrNull != true) {
+      notifier.refresh();
+    }
+  });
+  Future.microtask(notifier.refresh);
+  return notifier;
+});
+
+final myOrderListProvider = StateNotifierProvider.autoDispose
+    .family<OrderListNotifier, OrderListState, OrderListFilter>((ref, filter) {
+  final notifier = OrderListNotifier(
+    ref.watch(spClientProvider),
+    filter,
+    listAlias: 'OrderRequest.ListMine',
+  );
   ref.listen(authStateProvider, (prev, next) {
     if (next.valueOrNull == true && prev?.valueOrNull != true) {
       notifier.refresh();
@@ -81,20 +102,24 @@ final orderListProvider = StateNotifierProvider.autoDispose
 });
 
 class OrderListNotifier extends StateNotifier<OrderListState> {
-  OrderListNotifier(this._client, this._filter) : super(const OrderListState());
+  OrderListNotifier(this._client, this._filter, {required this.listAlias})
+      : super(const OrderListState());
 
   final SpClient _client;
   final OrderListFilter _filter;
+  final String listAlias;
   int _page = 0;
 
   Future<void> refresh() async {
     _page = 0;
+    if (!mounted) return;
     state = const OrderListState(isLoading: true);
     await _loadPage(reset: true);
   }
 
   Future<void> loadMore() async {
     if (state.isLoading || state.isLoadingMore || !state.hasMore) return;
+    if (!mounted) return;
     state = state.copyWith(isLoadingMore: true, clearError: true);
     await _loadPage(reset: false);
   }
@@ -102,18 +127,19 @@ class OrderListNotifier extends StateNotifier<OrderListState> {
   Future<void> _loadPage({required bool reset}) async {
     final nextPage = reset ? 1 : _page + 1;
     try {
-      final response = await _client.exec('OrderRequest.List', {
+      final response = await _client.exec(listAlias, {
         'DateFrom': _formatDate(_filter.dateFrom),
         'DateTo': _formatDate(_filter.dateTo),
         'Status': _filter.status,
         'Page': nextPage,
         'PageSize': kOrderPageSize,
       });
+      if (!mounted) return;
       if (!response.success) {
         state = state.copyWith(
           isLoading: false,
           isLoadingMore: false,
-          error: response.error ?? 'Siparişler yüklenemedi',
+          error: response.error ?? 'Talepler yüklenemedi',
         );
         return;
       }
@@ -126,6 +152,7 @@ class OrderListNotifier extends StateNotifier<OrderListState> {
         hasMore: batch.length >= kOrderPageSize,
       );
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         isLoadingMore: false,
@@ -142,12 +169,75 @@ final orderDetailProvider = FutureProvider.autoDispose
     'OrderRequestId': orderRequestId,
   });
   if (!response.success) {
-    throw Exception(response.error ?? 'Sipariş yüklenemedi');
+    throw Exception(response.error ?? 'Talep yüklenemedi');
   }
   final rows = parseRowList(response.data);
-  if (rows.isEmpty) throw Exception('Sipariş bulunamadı');
-  return OrderRequestDetail.fromJson(rows.first);
+  if (rows.isEmpty) throw Exception('Talep bulunamadı');
+  final detail = OrderRequestDetail.fromJson(rows.first);
+  final enrichedLines = await enrichOrderRequestLinesWithImages(client, detail.lines);
+  return OrderRequestDetail(
+    orderRequestId: detail.orderRequestId,
+    memberEmail: detail.memberEmail,
+    customer: detail.customer,
+    note: detail.note,
+    status: detail.status,
+    createdAt: detail.createdAt,
+    totalAmount: detail.totalAmount,
+    currencyId: detail.currencyId,
+    convertedSaleId: detail.convertedSaleId,
+    convertedSaleDiscountPercent: detail.convertedSaleDiscountPercent,
+    convertedSaleDiscountFixedAmount: detail.convertedSaleDiscountFixedAmount,
+    convertedSaleSubtotalAmount: detail.convertedSaleSubtotalAmount,
+    convertedSaleNetTotalAmount: detail.convertedSaleNetTotalAmount,
+    lines: enrichedLines,
+  );
 });
+
+final myOrderDetailProvider = FutureProvider.autoDispose
+    .family<OrderRequestDetail, int>((ref, orderRequestId) async {
+  final client = ref.watch(spClientProvider);
+  final response = await client.exec('OrderRequest.GetMine', {
+    'OrderRequestId': orderRequestId,
+  });
+  if (!response.success) {
+    throw Exception(response.error ?? 'Talep yüklenemedi');
+  }
+  final rows = parseRowList(response.data);
+  if (rows.isEmpty) throw Exception('Talep bulunamadı');
+  final detail = OrderRequestDetail.fromJson(rows.first);
+  final enrichedLines = await enrichOrderRequestLinesWithImages(client, detail.lines);
+  return OrderRequestDetail(
+    orderRequestId: detail.orderRequestId,
+    memberEmail: detail.memberEmail,
+    customer: detail.customer,
+    note: detail.note,
+    status: detail.status,
+    createdAt: detail.createdAt,
+    totalAmount: detail.totalAmount,
+    currencyId: detail.currencyId,
+    convertedSaleId: detail.convertedSaleId,
+    convertedSaleDiscountPercent: detail.convertedSaleDiscountPercent,
+    convertedSaleDiscountFixedAmount: detail.convertedSaleDiscountFixedAmount,
+    convertedSaleSubtotalAmount: detail.convertedSaleSubtotalAmount,
+    convertedSaleNetTotalAmount: detail.convertedSaleNetTotalAmount,
+    lines: enrichedLines,
+  );
+});
+
+class OrderRequestMutationResult {
+  const OrderRequestMutationResult._({this.data, this.error});
+
+  factory OrderRequestMutationResult.success(Map<String, dynamic> data) =>
+      OrderRequestMutationResult._(data: data);
+
+  factory OrderRequestMutationResult.failure(String error) =>
+      OrderRequestMutationResult._(error: error);
+
+  final Map<String, dynamic>? data;
+  final String? error;
+
+  bool get ok => data != null;
+}
 
 class OrderRequestRepository {
   OrderRequestRepository(this._client);
@@ -163,10 +253,10 @@ class OrderRequestRepository {
   }) async {
     final response = await _client.exec('OrderRequest.Update', {
       'OrderRequestId': orderRequestId,
-      if (customer != null) 'Customer': customer,
-      if (note != null) 'Note': note,
-      if (status != null) 'Status': status,
-      if (lines != null) 'Lines': lines,
+      'Customer': ?customer,
+      'Note': ?note,
+      'Status': ?status,
+      'Lines': ?lines,
     });
     if (!response.success) return null;
     final rows = parseRowList(response.data);
@@ -174,20 +264,26 @@ class OrderRequestRepository {
     return rows.first;
   }
 
-  Future<Map<String, dynamic>?> convert({
+  Future<OrderRequestMutationResult> convert({
     required int orderRequestId,
     int? paymentTypeId,
     String? note,
   }) async {
     final response = await _client.exec('OrderRequest.Convert', {
       'OrderRequestId': orderRequestId,
-      if (paymentTypeId != null) 'PaymentTypeId': paymentTypeId,
-      if (note != null) 'Note': note,
+      'PaymentTypeId': ?paymentTypeId,
+      'Note': ?note,
     });
-    if (!response.success) return null;
+    if (!response.success) {
+      return OrderRequestMutationResult.failure(
+        response.error ?? 'Satış tamamlanamadı',
+      );
+    }
     final rows = parseRowList(response.data);
-    if (rows.isEmpty) return null;
-    return rows.first;
+    if (rows.isEmpty) {
+      return OrderRequestMutationResult.failure('Sunucu boş yanıt döndü');
+    }
+    return OrderRequestMutationResult.success(rows.first);
   }
 }
 

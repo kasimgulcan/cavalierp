@@ -1,21 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/format/price_format.dart';
 import '../../core/network/sp_client.dart';
 import '../auth/auth_provider.dart';
+import 'checkout_discount.dart';
 import 'currency_selection.dart';
 import 'models/cart_line.dart';
+import 'models/order_request.dart';
 import 'models/product.dart';
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartLine>>((ref) {
-  return CartNotifier(ref.watch(spClientProvider), ref);
+  return CartNotifier(ref.watch(spClientProvider));
 });
 
 class CartNotifier extends StateNotifier<List<CartLine>> {
-  CartNotifier(this._spClient, this._ref) : super([]);
+  CartNotifier(this._spClient) : super([]);
 
   final SpClient _spClient;
-  final Ref _ref;
 
-  double get total => state.fold(0, (sum, line) => sum + line.lineTotal);
+  double totalFor(int currencyId) => roundSaleMoney(
+        state.fold(0, (sum, line) => sum + line.lineTotalFor(currencyId)),
+      );
 
   void addProduct(Product product, {int quantity = 1, double? unitPrice}) {
     final existing = state.indexWhere(
@@ -32,19 +36,39 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
       CartLine(
         product: product,
         quantity: quantity,
-        unitPrice: unitPrice ?? product.unitPrice,
+        unitPriceOverride: unitPrice,
       ),
     ];
   }
 
   void updateQuantity(int sizeId, int quantity) {
+    if (quantity <= 0) {
+      removeLine(sizeId);
+      return;
+    }
     state = [
       for (final line in state)
         if (line.product.sizeId == sizeId)
           CartLine(
             product: line.product,
             quantity: quantity,
-            unitPrice: line.unitPrice,
+            unitPriceOverride: line.unitPriceOverride,
+            listPriceOverride: line.listPriceOverride,
+          )
+        else
+          line,
+    ];
+  }
+
+  void updateUnitPrice(int sizeId, double unitPrice) {
+    state = [
+      for (final line in state)
+        if (line.product.sizeId == sizeId)
+          CartLine(
+            product: line.product,
+            quantity: line.quantity,
+            unitPriceOverride: unitPrice < 0 ? 0 : unitPrice,
+            listPriceOverride: line.listPriceOverride,
           )
         else
           line,
@@ -57,14 +81,40 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
 
   void clear() => state = [];
 
-  Future<Product?> lookupBarcode(String barcode) async {
-    final currencyId = effectiveCurrencyId(
-      _ref.read(selectedCurrencyIdProvider),
-    );
+  void loadFromOrderRequest(OrderRequestDetail detail) {
+    final currencyId = detail.currencyId ?? kDefaultCurrencyId;
+    state = [
+      for (final line in detail.lines)
+        CartLine(
+          product: _productFromOrderLine(line, currencyId),
+          quantity: line.quantity,
+          unitPriceOverride: line.unitPrice,
+          listPriceOverride:
+              line.listPrice > 0 ? line.listPrice : line.unitPrice,
+        ),
+    ];
+  }
 
+  Product _productFromOrderLine(OrderRequestLine line, int currencyId) {
+    final price = line.unitPrice;
+    return Product(
+      sizeId: line.sizeId,
+      productName: line.product,
+      priceTL: currencyId == kDefaultCurrencyId ? price : 0,
+      priceEUR: currencyId == kEurCurrencyId ? price : 0,
+      priceUSD: currencyId == kUsdCurrencyId ? price : 0,
+      stockQty: (line.stockQty ?? 0).toDouble(),
+      styleName: line.styleName,
+      color: line.color,
+      sizeLabel: line.sizeLabel,
+      productCode: line.productCode,
+      imageUrl: line.imageUrl,
+    );
+  }
+
+  Future<Product?> lookupBarcode(String barcode) async {
     final response = await _spClient.exec('Product.GetByBarcode', {
       'Barcode': barcode,
-      'CurrencyId': currencyId,
     });
     if (!response.success) return null;
     final rows = response.data as List<dynamic>;
@@ -77,8 +127,11 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
     String? customer,
     int? paymentTypeId,
     String? note,
+    int? orderRequestId,
+    double discountPercent = 0,
+    double discountFixedAmount = 0,
   }) async {
-    final lines = _linesPayload();
+    final lines = _linesPayload(currencyId);
 
     final response = await _spClient.exec('Sale.Create', {
       'CurrencyId': currencyId,
@@ -86,6 +139,9 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
       'PaymentTypeId': paymentTypeId,
       'Lines': lines,
       'Note': note ?? '',
+      'OrderRequestId': ?orderRequestId,
+      'DiscountPercent': discountPercent,
+      'DiscountFixedAmount': roundSaleMoney(discountFixedAmount),
     });
 
     if (!response.success) return null;
@@ -99,7 +155,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
     String? customer,
     String? note,
   }) async {
-    final lines = _linesPayload();
+    final lines = _linesPayload(currencyId);
 
     final response = await _spClient.exec('OrderRequest.Create', {
       'CurrencyId': currencyId,
@@ -114,15 +170,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
     return Map<String, dynamic>.from(rows.first as Map);
   }
 
-  List<Map<String, dynamic>> _linesPayload() => state
-      .map(
-        (l) => {
-          'SizeId': l.product.sizeId,
-          'Product': l.product.displayName,
-          'Quantity': l.quantity,
-          'UnitPrice': l.unitPrice,
-          'ListPrice': l.product.listPrice,
-        },
-      )
-      .toList();
+  List<Map<String, dynamic>> _linesPayload(int currencyId) {
+    return buildSaleLinesPayload(lines: state, currencyId: currencyId);
+  }
 }

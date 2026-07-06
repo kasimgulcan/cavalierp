@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:csm_stok_mobile/core/models/exec_sp_response.dart';
+import 'package:cavalierp/core/models/exec_sp_response.dart';
 
 void main() {
   test('ExecSpResponse fromJson success', () {

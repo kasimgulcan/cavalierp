@@ -22,11 +22,15 @@ public sealed class SpWhitelist(IConfiguration configuration)
     [
         "Sale.",
         "OrderRequest.",
+        "Stock.",
+        "Report.",
     ];
 
     private static readonly string[] DefaultPublicAliases =
     [
         "OrderRequest.Create",
+        "OrderRequest.ListMine",
+        "OrderRequest.GetMine",
     ];
 
     private static readonly string[] DefaultStaffExactAliases =
@@ -38,19 +42,23 @@ public sealed class SpWhitelist(IConfiguration configuration)
         new Dictionary<string, SpDefinition>(StringComparer.OrdinalIgnoreCase)
         {
             ["Auth.Register"] = new("Auth.Register", "API_Auth_Register",
-                new HashSet<string> { "Email", "Password", "AcceptedTerms" }, false, false),
+                new HashSet<string> { "Username", "Password", "AcceptedTerms" }, false, false),
             ["Auth.Login"] = new("Auth.Login", "API_Auth_Login",
-                new HashSet<string> { "Email", "Password" }, false, false),
+                new HashSet<string> { "Username", "Password" }, false, false),
             ["Auth.RefreshToken"] = new("Auth.RefreshToken", "API_Auth_RefreshToken",
                 new HashSet<string> { "RefreshToken" }, false, false),
             ["Auth.DeleteAccount"] = new("Auth.DeleteAccount", "API_Auth_DeleteAccount",
                 new HashSet<string>(), true, true),
             ["Auth.GetProfile"] = new("Auth.GetProfile", "API_Auth_GetProfile",
                 new HashSet<string>(), true, true),
+            ["Auth.ChangePassword"] = new("Auth.ChangePassword", "API_Auth_ChangePassword",
+                new HashSet<string> { "CurrentPassword", "NewPassword" }, true, true),
             ["GetCurrency"] = new("GetCurrency", "API_Get_Currency",
                 new HashSet<string>(), false, false, false, SpParamPolicy.Open),
             ["Product.List"] = new("Product.List", "API_Product_List",
                 new HashSet<string>(), false, false, false, SpParamPolicy.Open),
+            ["Product.Images"] = new("Product.Images", string.Empty,
+                new HashSet<string>(), false, false, false, SpParamPolicy.Open, InlineHandler: true),
         };
 
     private readonly HashSet<string> _staffExactAliases = BuildStaffExactAliases(configuration);

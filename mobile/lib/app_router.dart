@@ -5,12 +5,15 @@ import 'features/auth/auth_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/privacy_policy_screen.dart';
 import 'features/auth/register_screen.dart';
+import 'features/auth/change_password_screen.dart';
 import 'features/sale/cart_screen.dart';
 import 'features/sale/checkout_screen.dart';
+import 'features/sale/my_order_detail_screen.dart';
 import 'features/sale/order_checkout_screen.dart';
 import 'features/sale/order_confirmed_screen.dart';
 import 'features/sale/home_shell.dart';
 import 'features/sale/order_detail_screen.dart';
+import 'features/sale/sale_detail_screen.dart';
 import 'features/sale/sale_summary_screen.dart';
 
 const _authRequiredPrefixes = [
@@ -19,6 +22,10 @@ const _authRequiredPrefixes = [
   '/order-confirmed',
   '/sale-summary',
   '/orders/',
+  '/my-orders/',
+  '/sales/',
+  '/cart',
+  '/change-password',
 ];
 
 bool _requiresAuth(String location) =>
@@ -60,6 +67,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
       GoRoute(path: '/privacy', builder: (context, state) => const PrivacyPolicyScreen()),
+      GoRoute(
+        path: '/change-password',
+        builder: (context, state) => const ChangePasswordScreen(),
+      ),
       GoRoute(path: '/home', builder: (context, state) => const HomeShell()),
       GoRoute(path: '/cart', builder: (context, state) => const CartScreen()),
       GoRoute(path: '/checkout', builder: (context, state) => const CheckoutScreen()),
@@ -78,6 +89,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/orders/:id',
         builder: (context, state) => OrderDetailScreen(
           orderRequestId: int.parse(state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/my-orders/:id',
+        builder: (context, state) => MyOrderDetailScreen(
+          orderRequestId: int.parse(state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/sales/:id',
+        builder: (context, state) => SaleDetailScreen(
+          saleId: int.parse(state.pathParameters['id']!),
         ),
       ),
     ],

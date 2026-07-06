@@ -6,7 +6,9 @@ import '../../core/network/api_error.dart';
 import '../../core/network/sp_client.dart';
 import '../../core/storage/token_storage.dart';
 import '../sale/currency_selection.dart';
+import '../sale/pending_cart_add_provider.dart';
 import 'unauthorized_notifier.dart';
+import 'username_validator.dart';
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
 
@@ -55,9 +57,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
 
   Future<void> _bootstrap() async {
     if (ScreenshotConfig.autoLogin &&
-        ScreenshotConfig.email.isNotEmpty &&
+        ScreenshotConfig.username.isNotEmpty &&
         ScreenshotConfig.password.isNotEmpty) {
-      await login(ScreenshotConfig.email, ScreenshotConfig.password);
+      await login(ScreenshotConfig.username, ScreenshotConfig.password);
       return;
     }
     final token = await _tokenStorage.getAccessToken();
@@ -75,12 +77,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
     state = const AsyncValue.data(false);
   }
 
-  Future<String?> login(String email, String password) async {
-    state = const AsyncValue.loading();
+  Future<String?> login(String username, String password) async {
     try {
       final response = await _spClient.exec(
         'Auth.Login',
-        {'Email': email, 'Password': password},
+        {'Username': username, 'Password': password},
         auth: false,
       );
       if (!response.success) {
@@ -92,7 +93,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
       final refreshToken = data != null ? readAuthToken(data, 'refreshToken') : null;
       if (accessToken == null || refreshToken == null) {
         state = const AsyncValue.data(false);
-        return 'E-posta veya şifre hatalı';
+        return 'Kullanıcı adı veya şifre hatalı';
       }
       await _tokenStorage.saveTokens(accessToken, refreshToken);
       _resetCurrencySelection();
@@ -104,12 +105,17 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
     }
   }
 
-  Future<String?> register(String email, String password) async {
+  Future<String?> register(String username, String password) async {
+    final trimmedUsername = username.trim();
+    final validationError = validateUsername(trimmedUsername);
+    if (validationError != null) return validationError;
+    final passwordError = validatePassword(password);
+    if (passwordError != null) return passwordError;
     try {
       final response = await _spClient.exec(
         'Auth.Register',
         {
-          'Email': email,
+          'Username': trimmedUsername,
           'Password': password,
           'AcceptedTerms': true,
         },
@@ -132,6 +138,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
   }
 
   Future<void> logout() async {
+    _ref.read(pendingCartAddProvider.notifier).clear();
     await _tokenStorage.clear();
     _resetCurrencySelection();
     state = const AsyncValue.data(false);
@@ -142,6 +149,29 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
       final response = await _spClient.exec('Auth.DeleteAccount', {});
       if (!response.success) return response.error ?? 'Silme başarısız';
       await logout();
+      return null;
+    } catch (e) {
+      return formatApiError(e);
+    }
+  }
+
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final passwordError = validatePassword(newPassword);
+    if (passwordError != null) return passwordError;
+    if (currentPassword == newPassword) {
+      return 'Yeni şifre mevcut şifreden farklı olmalıdır';
+    }
+    try {
+      final response = await _spClient.exec('Auth.ChangePassword', {
+        'CurrentPassword': currentPassword,
+        'NewPassword': newPassword,
+      });
+      if (!response.success) {
+        return response.error ?? 'Şifre değiştirilemedi';
+      }
       return null;
     } catch (e) {
       return formatApiError(e);

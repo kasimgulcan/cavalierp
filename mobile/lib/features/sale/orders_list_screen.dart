@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'models/order_request.dart';
 import 'order_request_provider.dart';
+import 'widgets/order_list_empty_state.dart';
+import 'widgets/order_list_filter_bar.dart';
+import 'widgets/order_request_list_card.dart';
 
 class OrdersListScreen extends ConsumerStatefulWidget {
   const OrdersListScreen({super.key});
@@ -25,6 +27,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     final now = DateTime.now();
     _dateFrom = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 30));
     _dateTo = DateTime(now.year, now.month, now.day);
+    _status = 'Pending';
     _filter = _buildFilter();
     _scrollController.addListener(_onScroll);
   }
@@ -88,63 +91,45 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(orderListProvider(_filter));
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Siparişler')),
+      appBar: AppBar(title: const Text('Talepler')),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _pickDate(isFrom: true),
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(_formatDisplayDate(_dateFrom)),
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('—'),
-                    ),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _pickDate(isFrom: false),
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(_formatDisplayDate(_dateTo)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String?>(
-                  decoration: const InputDecoration(
-                    labelText: 'Durum',
-                    isDense: true,
-                  ),
-                  initialValue: _status,
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('Tümü')),
-                    DropdownMenuItem(value: 'Pending', child: Text('Bekliyor')),
-                    DropdownMenuItem(value: 'Accepted', child: Text('Onaylandı')),
-                    DropdownMenuItem(value: 'Converted', child: Text('Tamamlandı')),
-                    DropdownMenuItem(value: 'Rejected', child: Text('Reddedildi')),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _status = value);
-                    _applyFilter();
-                  },
-                ),
-              ],
+            child: OrderListFilterBar(
+              dateFromLabel: _formatDisplayDate(_dateFrom),
+              dateToLabel: _formatDisplayDate(_dateTo),
+              status: _status,
+              onPickDateFrom: () => _pickDate(isFrom: true),
+              onPickDateTo: () => _pickDate(isFrom: false),
+              onStatusChanged: (value) {
+                setState(() => _status = value);
+                _applyFilter();
+              },
             ),
           ),
+          if (!state.isLoading && state.items.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${state.items.length} talep',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => ref.read(orderListProvider(_filter).notifier).refresh(),
+              onRefresh: () =>
+                  ref.read(orderListProvider(_filter).notifier).refresh(),
               child: _buildBody(context, state),
             ),
           ),
@@ -153,10 +138,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     );
   }
 
-  Widget _buildBody(
-    BuildContext context,
-    OrderListState state,
-  ) {
+  Widget _buildBody(BuildContext context, OrderListState state) {
     if (state.isLoading && state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -165,12 +147,15 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const SizedBox(height: 48),
-          Center(child: Text(state.error!)),
-          const SizedBox(height: 16),
+          OrderListEmptyState(
+            title: 'Talepler yüklenemedi',
+            subtitle: state.error,
+            icon: Icons.error_outline_rounded,
+          ),
           Center(
             child: FilledButton(
-              onPressed: () => ref.read(orderListProvider(_filter).notifier).refresh(),
+              onPressed: () =>
+                  ref.read(orderListProvider(_filter).notifier).refresh(),
               child: const Text('Tekrar dene'),
             ),
           ),
@@ -182,8 +167,11 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
-          SizedBox(height: 48),
-          Center(child: Text('Bu tarih aralığında sipariş yok')),
+          OrderListEmptyState(
+            title: 'Bu tarih aralığında talep yok',
+            subtitle: 'Filtreleri genişletmeyi veya farklı bir durum seçmeyi deneyin.',
+            icon: Icons.assignment_outlined,
+          ),
         ],
       );
     }
@@ -191,7 +179,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     return ListView.builder(
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index >= state.items.length) {
@@ -202,28 +190,20 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
         }
 
         final order = state.items[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            title: Text('#${order.orderRequestId} · ${order.displayName}'),
-            subtitle: Text(
-              [
-                if (order.createdAt != null) _formatDateTime(order.createdAt!.toLocal()),
-                orderStatusLabel(order.status),
-                if (order.lineCount != null) '${order.lineCount} kalem',
-              ].join(' · '),
-            ),
-            trailing: Text(
-              order.totalAmount?.toStringAsFixed(2) ?? '—',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            onTap: () async {
-              await context.push('/orders/${order.orderRequestId}');
-              if (mounted) {
-                ref.read(orderListProvider(_filter).notifier).refresh();
-              }
-            },
-          ),
+
+        return OrderRequestListCard(
+          order: order,
+          createdAtLabel: order.createdAt != null
+              ? _formatDateTime(order.createdAt!.toLocal())
+              : null,
+          lineCount: order.lineCount,
+          showStatusChip: true,
+          onTap: () async {
+            await context.push('/orders/${order.orderRequestId}');
+            if (mounted) {
+              ref.read(orderListProvider(_filter).notifier).refresh();
+            }
+          },
         );
       },
     );

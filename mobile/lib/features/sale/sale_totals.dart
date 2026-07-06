@@ -1,0 +1,61 @@
+import '../../core/format/price_format.dart';
+import 'checkout_discount.dart';
+import 'models/order_request.dart';
+import 'models/sale.dart';
+
+extension SaleDetailTotals on SaleDetail {
+  CheckoutDiscountInput get discountInput => CheckoutDiscountInput(
+        percent: discountPercent ?? 0,
+        fixedAmount: discountFixedAmount ?? 0,
+      );
+
+  double get listSubtotal {
+    if (subtotalAmount != null) {
+      return roundSaleMoney(subtotalAmount!);
+    }
+    return roundSaleMoney(
+      lines.fold(
+        0.0,
+        (sum, line) =>
+            sum + lineTotalFromUnitPrice(line.unitPrice, line.quantity),
+      ),
+    );
+  }
+
+  double get netTotal {
+    if (totalAmount != null) {
+      return roundSaleMoney(totalAmount!);
+    }
+    return discountInput.grandTotal(listSubtotal);
+  }
+
+  double get percentDiscountAmount =>
+      discountInput.percentDiscountAmount(listSubtotal);
+
+  double get fixedDiscountAmount =>
+      discountInput.fixedDiscountAmount(listSubtotal);
+
+  double get discountAmount => discountInput.totalDiscountAmount(listSubtotal);
+
+  bool get hasDiscount => discountAmount > 0;
+}
+
+extension OrderRequestSaleDiscount on OrderRequestDetail {
+  CheckoutDiscountInput? get convertedSaleDiscountInput {
+    if (convertedSaleId == null) return null;
+    final percent = convertedSaleDiscountPercent ?? 0;
+    final fixed = convertedSaleDiscountFixedAmount ?? 0;
+    if (percent <= 0 && fixed <= 0) return null;
+    return CheckoutDiscountInput(percent: percent, fixedAmount: fixed);
+  }
+
+  double? get convertedSaleSubtotal =>
+      convertedSaleSubtotalAmount != null
+          ? roundSaleMoney(convertedSaleSubtotalAmount!)
+          : null;
+
+  double? get convertedSaleNetTotal =>
+      convertedSaleNetTotalAmount != null
+          ? roundSaleMoney(convertedSaleNetTotalAmount!)
+          : null;
+}

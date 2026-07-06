@@ -3,13 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/models/json_field.dart';
 import 'cart_provider.dart';
+import 'currency_display.dart';
 import 'currency_provider.dart';
 import 'currency_selection.dart';
 import 'models/product.dart';
+import 'widgets/currency_picker_bar.dart';
 import 'widgets/product_dialog_image.dart';
 
 class ScannerScreen extends ConsumerStatefulWidget {
-  const ScannerScreen({super.key});
+  const ScannerScreen({super.key, this.showCurrencyPicker = true});
+
+  /// Ürünler ekranından açıldığında para birimi seçici gizlenir.
+  final bool showCurrencyPicker;
 
   @override
   ConsumerState<ScannerScreen> createState() => _ScannerScreenState();
@@ -50,13 +55,6 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
   void _onCurrencyChanged(int? currencyId) {
     if (currencyId == null) return;
-    final cart = ref.read(cartProvider);
-    if (cart.isNotEmpty) {
-      ref.read(cartProvider.notifier).clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Para birimi değişti, sepet temizlendi')),
-      );
-    }
     ref.read(selectedCurrencyIdProvider.notifier).state = currencyId;
   }
 
@@ -93,26 +91,26 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   }
 
   Future<void> _showAddDialog(Product product) async {
-    final currency = ref.read(selectedCurrencyProvider);
-    final currencyCode = currency?.stringField('Code') ?? '';
+    final currencyId = effectiveCurrencyId(ref.read(selectedCurrencyIdProvider));
+    final currencySign = currencySymbolFrom(ref.read(selectedCurrencyProvider));
 
     var quantity = 1;
-    var price = product.unitPrice;
+    var price = product.priceFor(currencyId);
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          title: Text(product.displayName),
+          title: Text(product.productName),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ProductDialogImage(product: product),
+                ProductDialogImage(imageUrl: product.imageUrl),
                 const SizedBox(height: 12),
                 Text('ID: ${product.sizeId}'),
                 Text(
-                  'Liste fiyatı ($currencyCode): ${product.listPrice.toStringAsFixed(2)}',
+                  'Liste fiyatı ($currencySign): ${price.toStringAsFixed(2)}',
                 ),
                 Text('Stok: ${product.stockQty}'),
                 Row(
@@ -134,7 +132,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
                 TextFormField(
                   initialValue: price.toStringAsFixed(2),
                   decoration: InputDecoration(
-                    labelText: 'Birim fiyat ($currencyCode)',
+                    labelText: 'Birim fiyat ($currencySign)',
                   ),
                   keyboardType: TextInputType.number,
                   onChanged: (v) => price = double.tryParse(v) ?? price,
@@ -169,79 +167,21 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencies = ref.watch(currenciesProvider);
-    final selectedCurrencyId = ref.watch(selectedCurrencyIdProvider);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Barkod'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart),
-            tooltip: 'Sepet',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sepet sekmesinden görüntüleyin')),
-              );
-            },
-          ),
+          if (widget.showCurrencyPicker)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Center(
+                child: CurrencyPickerBar(onChanged: _onCurrencyChanged),
+              ),
+            ),
         ],
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: currencies.when(
-              data: (items) {
-                final menuItems = items
-                    .map((c) {
-                      final id = c.intField('CurrencyId');
-                      if (id == null) return null;
-                      return DropdownMenuItem<int>(
-                        value: id,
-                        child: Text(
-                          '${c.stringField('Code')} — ${c.stringField('Name')}',
-                        ),
-                      );
-                    })
-                    .whereType<DropdownMenuItem<int>>()
-                    .toList();
-
-                final validIds = menuItems.map((e) => e.value).toSet();
-                final current = selectedCurrencyId;
-                final effectiveValue = validIds.contains(current)
-                    ? current
-                    : (menuItems.isNotEmpty
-                          ? menuItems.first.value!
-                          : kDefaultCurrencyId);
-
-                if (!validIds.contains(current) && menuItems.isNotEmpty) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (!mounted) return;
-                    ref.read(selectedCurrencyIdProvider.notifier).state =
-                        effectiveValue;
-                  });
-                }
-
-                return DropdownButtonFormField<int>(
-                  key: ValueKey(effectiveValue),
-                  decoration: const InputDecoration(
-                    labelText: 'Para birimi',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  initialValue: effectiveValue,
-                  items: menuItems,
-                  onChanged: menuItems.isEmpty ? null : _onCurrencyChanged,
-                );
-              },
-              loading: () => const LinearProgressIndicator(),
-              error: (error, stack) => Text(
-                error.toString().replaceFirst('Exception: ', ''),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          ),
           Expanded(
             child: Stack(
               children: [

@@ -18,6 +18,7 @@ class ScreenshotConfig {
       int.fromEnvironment('SCREENSHOT_TAB', defaultValue: 0);
   static const _compileAutoLogin =
       bool.fromEnvironment('SCREENSHOT_AUTO_LOGIN');
+  static const _compileUsername = String.fromEnvironment('SCREENSHOT_USERNAME');
   static const _compileEmail = String.fromEnvironment('SCREENSHOT_EMAIL');
   static const _compilePassword =
       String.fromEnvironment('SCREENSHOT_PASSWORD');
@@ -25,7 +26,9 @@ class ScreenshotConfig {
   static String route = _compileRoute;
   static int tabIndex = _compileTab;
   static bool autoLogin = _compileAutoLogin;
-  static String email = _compileEmail;
+  static String username = _compileUsername.isNotEmpty
+      ? _compileUsername
+      : _compileEmail;
   static String password = _compilePassword;
 
   static bool get enabled => tourMode || route.isNotEmpty;
@@ -45,7 +48,9 @@ class ScreenshotConfig {
       route = json['route'] as String? ?? '/login';
       tabIndex = json['tab'] as int? ?? 0;
       autoLogin = json['autoLogin'] as bool? ?? false;
-      email = json['email'] as String? ?? '';
+      final jsonUsername = json['username'] as String? ?? '';
+      final jsonEmail = json['email'] as String? ?? '';
+      username = jsonUsername.isNotEmpty ? jsonUsername : jsonEmail;
       password = json['password'] as String? ?? '';
     } catch (e) {
       route = '/login';

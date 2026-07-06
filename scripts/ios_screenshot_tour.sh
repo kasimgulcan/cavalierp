@@ -97,9 +97,9 @@ capture "02-register" "/register" "false" "0" || failed=$((failed + 1))
 
 if [ -n "$EMAIL" ] && [ -n "$PASSWORD" ]; then
   capture "03-products" "/home" "true" "0" || failed=$((failed + 1))
-  capture "04-cart" "/home" "true" "1" || failed=$((failed + 1))
-  capture "05-scanner" "/home" "true" "2" || failed=$((failed + 1))
-  capture "06-profile" "/home" "true" "3" || failed=$((failed + 1))
+  capture "04-cart" "/home" "true" "2" || failed=$((failed + 1))
+  capture "05-scanner" "/home" "true" "0" || failed=$((failed + 1))
+  capture "06-profile" "/home" "true" "4" || failed=$((failed + 1))
 else
   echo "::warning::SCREENSHOT_EMAIL/PASSWORD not set — skipping authenticated screens."
 fi

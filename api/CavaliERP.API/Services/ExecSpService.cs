@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using CsmStok.Api.Models;
 using Microsoft.Data.SqlClient;
 
@@ -47,6 +48,9 @@ public sealed class ExecSpService(
                 return (StatusCodes.Status403Forbidden, ExecSpResponse.Fail("Staff access required."));
         }
 
+        if (def.InlineHandler)
+            return await ExecuteInlineAsync(def, ct);
+
         try
         {
             var result = await executor.ExecuteAsync(def, spParams, ct);
@@ -54,6 +58,7 @@ public sealed class ExecSpService(
             {
                 result = EnrichAuthResponse(request.Sp, result);
                 result = await EnrichProductResponseAsync(request.Sp, result, ct);
+                result = await EnrichOrderRequestResponseAsync(request.Sp, result, ct);
             }
 
             return (StatusCodes.Status200OK, result);
@@ -79,7 +84,7 @@ public sealed class ExecSpService(
         if (result.Data is not List<Dictionary<string, object?>> rows || rows.Count == 0)
         {
             if (spAlias.Equals("Auth.Login", StringComparison.OrdinalIgnoreCase))
-                return ExecSpResponse.Fail("Invalid email or password.");
+                return ExecSpResponse.Fail("Geçersiz kullanıcı adı veya şifre.");
 
             return result;
         }
@@ -89,10 +94,10 @@ public sealed class ExecSpService(
             return result;
 
         var userId = Convert.ToInt32(userIdObj);
-        var email = row.GetValueOrDefault("Email")?.ToString() ?? string.Empty;
+        var username = row.GetValueOrDefault("Username")?.ToString() ?? string.Empty;
         var role = row.GetValueOrDefault("Role")?.ToString() ?? "Member";
 
-        var tokens = jwtTokenService.CreateTokens(userId, email, role);
+        var tokens = jwtTokenService.CreateTokens(userId, username, role);
         return ExecSpResponse.Ok(new
         {
             user = row,
@@ -116,13 +121,29 @@ public sealed class ExecSpService(
         if (result.Data is not List<Dictionary<string, object?>> rows || rows.Count == 0)
             return result;
 
+        var isList = spAlias.Equals("Product.List", StringComparison.OrdinalIgnoreCase);
+
+        IReadOnlyDictionary<string, string>? images;
+        if (isList)
+        {
+            images = productImageCatalog.TryGetCached();
+            if (images is null)
+                productImageCatalog.ScheduleRefreshIfStale();
+        }
+        else
+        {
+            images = await productImageCatalog.GetImagesAsync(ct);
+        }
+
+        if (images is null)
+            return result;
+
         try
         {
-            var images = await productImageCatalog.GetImagesAsync(ct);
             foreach (var row in rows)
             {
-                var variantCode = row.GetValueOrDefault("VariantCode")?.ToString();
-                var imageUrl = ProductImageCatalog.ResolveImageUrl(images, variantCode);
+                var productCode = row.GetValueOrDefault("ProductCode")?.ToString();
+                var imageUrl = ProductImageCatalog.ResolveImageUrl(images, productCode);
                 if (imageUrl is not null)
                     row["ImageUrl"] = imageUrl;
             }
@@ -133,5 +154,99 @@ public sealed class ExecSpService(
         }
 
         return result;
+    }
+
+    private async Task<ExecSpResponse> EnrichOrderRequestResponseAsync(
+        string spAlias,
+        ExecSpResponse result,
+        CancellationToken ct)
+    {
+        if (!spAlias.Equals("OrderRequest.Get", StringComparison.OrdinalIgnoreCase)
+            && !spAlias.Equals("OrderRequest.GetMine", StringComparison.OrdinalIgnoreCase))
+        {
+            return result;
+        }
+
+        if (result.Data is not List<Dictionary<string, object?>> rows || rows.Count == 0)
+            return result;
+
+        IReadOnlyDictionary<string, string> images;
+        try
+        {
+            images = await productImageCatalog.GetImagesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Order request image enrichment skipped.");
+            return result;
+        }
+
+        foreach (var row in rows)
+        {
+            if (!row.TryGetValue("Lines", out var linesObj) || linesObj is null)
+                continue;
+
+            var linesJson = linesObj.ToString();
+            if (string.IsNullOrWhiteSpace(linesJson))
+                continue;
+
+            try
+            {
+                using var document = JsonDocument.Parse(linesJson);
+                if (document.RootElement.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var enriched = new List<Dictionary<string, object?>>();
+                foreach (var line in document.RootElement.EnumerateArray())
+                {
+                    var item = JsonSerializer.Deserialize<Dictionary<string, object?>>(line.GetRawText())
+                        ?? new Dictionary<string, object?>();
+
+                    var productCode = item.GetValueOrDefault("ProductCode")?.ToString();
+                    var imageUrl = ProductImageCatalog.ResolveImageUrl(images, productCode);
+                    if (imageUrl is not null)
+                        item["ImageUrl"] = imageUrl;
+
+                    enriched.Add(item);
+                }
+
+                row["Lines"] = JsonSerializer.Serialize(enriched);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Order request line image enrichment failed.");
+            }
+        }
+
+        return result;
+    }
+
+    private async Task<(int StatusCode, ExecSpResponse Body)> ExecuteInlineAsync(
+        SpDefinition def,
+        CancellationToken ct)
+    {
+        if (!def.Alias.Equals("Product.Images", StringComparison.OrdinalIgnoreCase))
+            return (StatusCodes.Status403Forbidden, ExecSpResponse.Fail("SP not allowed."));
+
+        try
+        {
+            var images = await productImageCatalog.GetImagesAsync(ct);
+            var rows = images
+                .GroupBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .Select(pair => new Dictionary<string, object?>
+                {
+                    ["ProductCode"] = pair.Key,
+                    ["ImageUrl"] = pair.Value,
+                })
+                .ToList();
+
+            return (StatusCodes.Status200OK, ExecSpResponse.Ok(rows));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Product.Images inline handler failed.");
+            return (StatusCodes.Status200OK, ExecSpResponse.Ok(Array.Empty<object>()));
+        }
     }
 }

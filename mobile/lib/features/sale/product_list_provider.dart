@@ -8,21 +8,17 @@ const kProductPageSize = 30;
 
 class ProductListFilter {
   const ProductListFilter({
-    required this.currencyId,
     this.search = '',
   });
 
-  final int currencyId;
   final String search;
 
   @override
   bool operator ==(Object other) =>
-      other is ProductListFilter &&
-      other.currencyId == currencyId &&
-      other.search == search;
+      other is ProductListFilter && other.search == search;
 
   @override
-  int get hashCode => Object.hash(currencyId, search);
+  int get hashCode => search.hashCode;
 }
 
 class ProductListState {
@@ -78,12 +74,14 @@ class ProductListNotifier extends StateNotifier<ProductListState> {
 
   Future<void> refresh() async {
     _page = 0;
+    if (!mounted) return;
     state = const ProductListState(isLoading: true);
     await _loadPage(reset: true);
   }
 
   Future<void> loadMore() async {
     if (state.isLoading || state.isLoadingMore || !state.hasMore) return;
+    if (!mounted) return;
     state = state.copyWith(isLoadingMore: true, clearError: true);
     await _loadPage(reset: false);
   }
@@ -95,13 +93,14 @@ class ProductListNotifier extends StateNotifier<ProductListState> {
         'Product.List',
         {
           'Search': _filter.search.isEmpty ? null : _filter.search,
-          'CurrencyId': _filter.currencyId,
           'Page': nextPage,
           'PageSize': kProductPageSize,
         },
         auth: false,
       );
+      if (!mounted) return;
       if (!response.success) {
+        if (!mounted) return;
         state = state.copyWith(
           isLoading: false,
           isLoadingMore: false,
@@ -113,16 +112,76 @@ class ProductListNotifier extends StateNotifier<ProductListState> {
           .map((row) => Product.fromJson(row))
           .toList();
       _page = nextPage;
+      if (!mounted) return;
       state = ProductListState(
         items: reset ? batch : [...state.items, ...batch],
         hasMore: batch.length >= kProductPageSize,
       );
+      _scheduleImageEnrichment(batch);
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         isLoadingMore: false,
         error: e.toString(),
       );
+    }
+  }
+
+  void _scheduleImageEnrichment(List<Product> batch) {
+    if (!batch.any((product) => product.imageUrl?.trim().isNotEmpty != true)) {
+      return;
+    }
+    // Ürün listesi önce gösterilir; görsel URL'leri arka planda tamamlanır.
+    Future<void>(() => _enrichMissingImages());
+  }
+
+  Future<void> _enrichMissingImages() async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (!mounted) return;
+      if (!state.items
+          .any((product) => product.imageUrl?.trim().isNotEmpty != true)) {
+        return;
+      }
+
+      try {
+        final response = await _client.exec('Product.Images', {}, auth: false);
+        if (!response.success || !mounted) return;
+
+        final imageByCode = <String, String>{};
+        for (final row in parseRowList(response.data)) {
+          final code = row.stringField('ProductCode')?.trim();
+          final url = row.stringField('ImageUrl')?.trim();
+          if (code == null || code.isEmpty || url == null || url.isEmpty) {
+            continue;
+          }
+          imageByCode.putIfAbsent(code, () => url);
+        }
+
+        if (imageByCode.isNotEmpty) {
+          final updated = state.items
+              .map((product) {
+                final existing = product.imageUrl?.trim();
+                if (existing != null && existing.isNotEmpty) return product;
+                final code = product.productCode?.trim();
+                if (code == null || code.isEmpty) return product;
+                final url = imageByCode[code];
+                if (url == null || url.isEmpty) return product;
+                return product.copyWith(imageUrl: url);
+              })
+              .toList();
+
+          if (!mounted) return;
+          state = state.copyWith(items: updated);
+          return;
+        }
+      } catch (_) {
+        return;
+      }
+
+      if (attempt < 2) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
     }
   }
 }
