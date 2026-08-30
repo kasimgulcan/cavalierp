@@ -148,5 +148,5 @@ class _TotalRow extends StatelessWidget {
 }
 
 String formatCartTotal(double total, String currencySymbol) {
-  return formatPriceWithSymbol(total, currencySymbol, decimals: 0);
+  return formatSaleMoney(total, currencySymbol);
 }

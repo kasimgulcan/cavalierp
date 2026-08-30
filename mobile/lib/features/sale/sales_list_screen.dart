@@ -27,7 +27,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _dateFrom = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 30));
+    _dateFrom = DateTime(now.year, now.month, now.day);
     _dateTo = DateTime(now.year, now.month, now.day);
     _filter = _buildFilter();
     _scrollController.addListener(_onScroll);

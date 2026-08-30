@@ -28,7 +28,6 @@ class SaleListCard extends StatelessWidget {
             ? formatPriceWithSymbol(
                 roundSaleMoney(sale.totalAmount!),
                 symbol,
-                decimals: 0,
               )
             : '—');
 

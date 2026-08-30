@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,6 +37,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   String _search = '';
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -48,6 +51,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -304,12 +308,31 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     }
   }
 
-  void _openProductGroup(
+  void _clearSearch() {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    if (_search.isEmpty) return;
+    setState(() => _search = '');
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    if (value.isEmpty) {
+      setState(() => _search = '');
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _search = value.trim());
+    });
+  }
+
+  Future<void> _openProductGroup(
     ProductGroup group,
     bool isStaff,
     String currencySign,
-  ) {
-    showProductSizeSheet(
+  ) async {
+    await showProductSizeSheet(
       context: context,
       group: group,
       currencySymbol: currencySign,
@@ -322,6 +345,8 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
       onGoToCart: () => ref.read(homeShellTabProvider.notifier).state =
           kHomeShellCartTabIndex,
     );
+    if (!mounted) return;
+    _clearSearch();
   }
 
   void _openBarcodeScanner() {
@@ -387,7 +412,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Ürün veya barkod ara',
+                  hintText: 'Stil, ürün adı veya barkod ara',
                   prefixIcon: Icon(
                     Icons.search,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -395,10 +420,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   suffixIcon: _search.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.close_rounded, size: 20),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _search = '');
-                          },
+                          onPressed: _clearSearch,
                         )
                       : null,
                   border: InputBorder.none,
@@ -407,12 +429,11 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   isDense: true,
                 ),
-                onSubmitted: (v) => setState(() => _search = v.trim()),
-                onChanged: (v) {
-                  if (v.isEmpty && _search.isNotEmpty) {
-                    setState(() => _search = '');
-                  }
+                onSubmitted: (v) {
+                  _searchDebounce?.cancel();
+                  setState(() => _search = v.trim());
                 },
+                onChanged: _onSearchChanged,
               ),
             ),
           ),

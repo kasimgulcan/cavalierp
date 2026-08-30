@@ -1,0 +1,22 @@
+Öncelikli:
+rounddown eklenecek
+
+
+
+excel fiyatlar için 4 tane excel olacak
+aynı dosyadaki gibi olacaklar
+
+
+
+
+Sonradan:
+
+- varyant seviyesinde size ları oluşturma özelliği
+ 
+- undo ?
+
+- elbette ki yapıyı kurup tamamladıkça bir user/kullanım notes açmak ve koymak isterim. 
+
+- size chart taki tabloları da sistemde tutmak yönetmek isterim, excel yerine
+
+- yıkama talimatları, kompozisyonları da ve kumnaş bazlı açıklamaları da lookup tan çekmek isterim ileride! bunlar çünkü sabit, ortak ve önceden belirlenebilecek datalar

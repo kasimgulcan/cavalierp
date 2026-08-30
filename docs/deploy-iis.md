@@ -10,6 +10,9 @@ IIS uygulaması `/cavalierp/api` altında çalışır. API route'ları bu path'i
 | DB health | `https://app.devcloud.com.tr/cavalierp/api/health/db` |
 | Auth exec | `https://app.devcloud.com.tr/cavalierp/api/auth/exec` |
 | Business exec | `https://app.devcloud.com.tr/cavalierp/api/exec` |
+| Ecommerce stock webhook | `https://app.devcloud.com.tr/cavalierp/api/integrations/ecommerce/stock` |
+| Ecommerce stock snapshot | `https://app.devcloud.com.tr/cavalierp/api/integrations/ecommerce/stock/snapshot` |
+| E-ticaret simülatörü | `https://app.devcloud.com.tr/cavalierp/api/tester/` |
 
 ## Prerequisites
 

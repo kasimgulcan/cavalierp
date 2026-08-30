@@ -7,8 +7,15 @@ double roundMoney(double value, {int fractionDigits = 2}) {
   return (value * factor).roundToDouble() / factor;
 }
 
-/// Satış toplamları tam liraya yuvarlanır (örn. 73.999,98 → 74.000).
-double roundSaleMoney(double value) => roundMoney(value, fractionDigits: 0);
+/// Satış tutarları kuruşa (2 ondalık) yuvarlanır.
+const kSaleMoneyDecimals = 2;
+
+/// Satış tutarını kuruşa yuvarlar (örn. 21,044 → 21,04).
+double roundSaleMoney(double value) =>
+    roundMoney(value, fractionDigits: kSaleMoneyDecimals);
+
+String formatSaleMoney(double value, String symbol) =>
+    formatPriceWithSymbol(value, symbol, decimals: kSaleMoneyDecimals);
 
 /// Türkiye formatı: binlik ayraç `.`, ondalık `,` — örn. 1.234,56
 String formatPrice(double value, {int decimals = 2}) {

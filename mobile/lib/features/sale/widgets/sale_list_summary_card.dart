@@ -48,11 +48,7 @@ class SaleListSummaryCard extends StatelessWidget {
             Expanded(
               child: _SummaryMetric(
                 label: hasMore ? 'Yüklenen toplam' : 'Toplam tutar',
-                value: formatPriceWithSymbol(
-                  roundSaleMoney(totalAmount),
-                  symbol,
-                  decimals: 0,
-                ),
+                value: formatSaleMoney(roundSaleMoney(totalAmount), symbol),
               ),
             ),
           ],

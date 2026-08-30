@@ -196,7 +196,7 @@ class _ReportSummaryCard extends StatelessWidget {
             Expanded(
               child: _SummaryMetric(
                 label: 'Toplam tutar',
-                value: formatPriceWithSymbol(roundSaleMoney(amount), symbol, decimals: 0),
+                value: formatSaleMoney(roundSaleMoney(amount), symbol),
               ),
             ),
           ],
@@ -297,7 +297,7 @@ class _ProductReportTile extends StatelessWidget {
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              '${group.totalQuantity} adet · ${formatPriceWithSymbol(roundSaleMoney(group.totalAmount), symbol, decimals: 0)}',
+              '${group.totalQuantity} adet · ${formatSaleMoney(roundSaleMoney(group.totalAmount), symbol)}',
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -351,7 +351,7 @@ class _SizeReportRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Text(
-          formatPriceWithSymbol(roundSaleMoney(line.amount), symbol, decimals: 0),
+          formatSaleMoney(roundSaleMoney(line.amount), symbol),
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w700,
           ),

@@ -8,8 +8,10 @@ const _username = String.fromEnvironment('SCREENSHOT_USERNAME');
 const _email = String.fromEnvironment('SCREENSHOT_EMAIL');
 const _password = String.fromEnvironment('SCREENSHOT_PASSWORD');
 
-String get _loginUsername =>
-    _username.isNotEmpty ? _username : _email;
+String get _loginUsername {
+  if (_username.isNotEmpty) return _username;
+  return _email;
+}
 
 Future<void> _screenshot(
   IntegrationTestWidgetsFlutterBinding binding,
@@ -33,6 +35,13 @@ Future<void> _restartApp(WidgetTester tester) async {
   await _pause(tester, const Duration(seconds: 4));
 }
 
+Future<void> _tapNavIcon(WidgetTester tester, IconData icon) async {
+  final target = find.byIcon(icon);
+  if (target.evaluate().isEmpty) return;
+  await tester.tap(target.last);
+  await _pause(tester, const Duration(seconds: 4));
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -53,25 +62,33 @@ void main() {
     await tester.enterText(fields.at(0), _loginUsername);
     await tester.enterText(fields.at(1), _password);
     await tester.tap(find.text('Giriş Yap'));
-    // API login — fixed wait instead of pumpAndSettle on loading spinner.
     await _pause(tester, const Duration(seconds: 12));
 
     if (find.text('Ürünler').evaluate().isEmpty) return;
 
     await _screenshot(binding, '03-products');
 
-    await tester.tap(find.text('Sepet'));
-    await _pause(tester, const Duration(seconds: 2));
-    await _screenshot(binding, '04-cart');
+    await _tapNavIcon(tester, Icons.assignment_outlined);
+    await _screenshot(binding, '04-orders');
+
+    await _tapNavIcon(tester, Icons.shopping_cart);
+    await _screenshot(binding, '05-cart');
+
+    await _tapNavIcon(tester, Icons.point_of_sale);
+    await _screenshot(binding, '06-sales');
+
+    await _tapNavIcon(tester, Icons.bar_chart_rounded);
+    await _screenshot(binding, '07-reports');
 
     if (find.byType(FloatingActionButton).evaluate().isNotEmpty) {
-      await tester.tap(find.byType(FloatingActionButton));
+      await tester.tap(find.byType(FloatingActionButton).first);
       await _pause(tester, const Duration(seconds: 2));
-      await _screenshot(binding, '05-scanner');
+      await _screenshot(binding, '08-scanner');
+      await tester.pageBack();
+      await _pause(tester, const Duration(seconds: 2));
     }
 
-    await tester.tap(find.text('Profil'));
-    await _pause(tester, const Duration(seconds: 2));
-    await _screenshot(binding, '06-profile');
+    await _tapNavIcon(tester, Icons.person);
+    await _screenshot(binding, '09-profile');
   });
 }

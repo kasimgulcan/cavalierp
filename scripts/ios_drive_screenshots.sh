@@ -4,8 +4,8 @@ set -euo pipefail
 
 DEVICE_ID="${1:?device udid required}"
 APP_PATH="${2:?Runner.app path required}"
-EMAIL="${3:-}"
-PASSWORD="${4:-}"
+LOGIN_USER="${3:-${SCREENSHOT_USERNAME:-${SCREENSHOT_EMAIL:-}}}"
+PASSWORD="${4:-${SCREENSHOT_PASSWORD:-}}"
 LOG="${5:-flutter-drive.log}"
 OUT_DIR="${6:-collected-screenshots}"
 
@@ -32,7 +32,8 @@ flutter drive \
   --target=integration_test/app_screenshots_test.dart \
   --use-application-binary="$APP_PATH" \
   -d "$DEVICE_ID" \
-  --dart-define=SCREENSHOT_EMAIL="$EMAIL" \
+  --dart-define=SCREENSHOT_USERNAME="$LOGIN_USER" \
+  --dart-define=SCREENSHOT_EMAIL="$LOGIN_USER" \
   --dart-define=SCREENSHOT_PASSWORD="$PASSWORD" \
   >> "$LOG" 2>&1 &
 DRIVE_PID=$!
@@ -46,7 +47,7 @@ echo "Waiting for screenshots (max ~11 min)..."
 found=0
 for i in $(seq 1 330); do
   count=$(screenshot_count)
-  if [ "$count" -ge 2 ]; then
+  if [ "$count" -ge 5 ]; then
     echo "Found $count screenshot(s) after ~$((i * 2))s — stopping drive."
     found=1
     sleep 10

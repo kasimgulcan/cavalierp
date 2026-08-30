@@ -24,6 +24,8 @@ final spClientProvider = Provider<SpClient>((ref) {
   return SpClient(ref.watch(dioProvider));
 });
 
+final lastKnownRoleProvider = StateProvider<String?>((ref) => null);
+
 final authStateProvider =
     StateNotifierProvider<AuthNotifier, AsyncValue<bool>>((ref) {
   return AuthNotifier(
@@ -67,6 +69,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
       state = const AsyncValue.data(false);
       return;
     }
+    final role = await _tokenStorage.getRole();
+    _ref.read(lastKnownRoleProvider.notifier).state = role;
     state = const AsyncValue.data(true);
   }
 
@@ -74,6 +78,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
     if (state.valueOrNull != true) return;
     await _tokenStorage.clear();
     _resetCurrencySelection();
+    _ref.read(lastKnownRoleProvider.notifier).state = null;
     state = const AsyncValue.data(false);
   }
 
@@ -96,6 +101,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
         return 'Kullanıcı adı veya şifre hatalı';
       }
       await _tokenStorage.saveTokens(accessToken, refreshToken);
+      await _applyRoleFromAuthPayload(data);
       _resetCurrencySelection();
       state = const AsyncValue.data(true);
       return null;
@@ -129,6 +135,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
         return response.error ?? 'Kayıt yanıtı geçersiz';
       }
       await _tokenStorage.saveTokens(accessToken, refreshToken);
+      await _applyRoleFromAuthPayload(data);
       _resetCurrencySelection();
       state = const AsyncValue.data(true);
       return null;
@@ -141,7 +148,19 @@ class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
     _ref.read(pendingCartAddProvider.notifier).clear();
     await _tokenStorage.clear();
     _resetCurrencySelection();
+    _ref.read(lastKnownRoleProvider.notifier).state = null;
     state = const AsyncValue.data(false);
+  }
+
+  Future<void> _applyRoleFromAuthPayload(Map<String, dynamic>? data) async {
+    if (data == null) return;
+    final user = data['user'] ?? data['User'];
+    String? role;
+    if (user is Map) {
+      role = Map<String, dynamic>.from(user).stringField('Role');
+    }
+    await _tokenStorage.saveRole(role);
+    _ref.read(lastKnownRoleProvider.notifier).state = role;
   }
 
   Future<String?> deleteAccount() async {

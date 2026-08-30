@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../auth/auth_provider.dart';
+import 'cart_provider.dart';
+import 'checkout_discount.dart';
+import 'checkout_draft.dart';
 import 'checkout_note.dart';
 import 'currency_display.dart';
 import 'currency_provider.dart';
+import 'currency_selection.dart';
 import 'models/sale.dart';
 import 'order_request_provider.dart';
 import 'sale_provider.dart';
@@ -13,6 +17,7 @@ import 'sale_totals.dart';
 import 'widgets/checkout_form_section.dart';
 import 'widgets/order_request_contact_section.dart';
 import 'widgets/order_request_total_bar.dart';
+import 'widgets/sale_detail_action_bar.dart';
 import 'widgets/sale_discount_summary_section.dart';
 import 'widgets/sale_line_tile.dart';
 
@@ -96,6 +101,29 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
     }
   }
 
+  void _edit(SaleDetail detail) {
+    final parsed = parseCheckoutNote(detail.note);
+    ref.read(cartProvider.notifier).loadFromSaleDetail(detail);
+    ref.read(checkoutDraftProvider.notifier).replace(
+          CheckoutDraft(
+            customer: detail.customer ?? '',
+            phone: parsed.phone ?? '',
+            email: parsed.email ?? '',
+            note: parsed.note ?? '',
+            paymentTypeId: detail.paymentTypeId,
+            discount: CheckoutDiscountInput(
+              percent: detail.discountPercent ?? 0,
+              fixedAmount: detail.discountFixedAmount ?? 0,
+            ),
+          ),
+        );
+    ref.read(editingSaleIdProvider.notifier).state = detail.saleId;
+    if (detail.currencyId != null) {
+      ref.read(selectedCurrencyIdProvider.notifier).state = detail.currencyId!;
+    }
+    context.push('/checkout');
+  }
+
   String? _paymentTypeName(
     List<Map<String, dynamic>> types,
     int? paymentTypeId,
@@ -152,6 +180,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
           cancelling: _cancelling,
           formatDateTime: _formatDateTime,
           onCancel: () => _cancel(detail),
+          onEdit: () => _edit(detail),
         ),
       ),
     );
@@ -166,6 +195,7 @@ class _SaleDetailBody extends StatelessWidget {
     required this.cancelling,
     required this.formatDateTime,
     required this.onCancel,
+    required this.onEdit,
   });
 
   final SaleDetail detail;
@@ -174,6 +204,7 @@ class _SaleDetailBody extends StatelessWidget {
   final bool cancelling;
   final String Function(DateTime) formatDateTime;
   final VoidCallback onCancel;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -276,24 +307,10 @@ class _SaleDetailBody extends StatelessWidget {
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: OutlinedButton(
-            onPressed: cancelling ? null : onCancel,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-              side: BorderSide(
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ),
-            child: cancelling
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Satışı İptal Et'),
-          ),
+        SaleDetailActionBar(
+          cancelling: cancelling,
+          onEdit: onEdit,
+          onCancel: onCancel,
         ),
         OrderRequestTotalBar(
           lineCount: detail.lines.length,

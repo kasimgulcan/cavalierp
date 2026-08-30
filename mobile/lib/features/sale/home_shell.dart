@@ -68,12 +68,36 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         ProfileScreen(),
       ];
       destinations = const [
-        NavigationDestination(icon: Icon(Icons.storefront), label: 'Ürünler'),
-        NavigationDestination(icon: Icon(Icons.assignment_outlined), label: 'Talepler'),
-        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Sepet'),
-        NavigationDestination(icon: Icon(Icons.point_of_sale), label: 'Satışlar'),
-        NavigationDestination(icon: Icon(Icons.bar_chart_rounded), label: 'Raporlar'),
-        NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
+        NavigationDestination(
+          icon: Icon(Icons.storefront),
+          label: 'Ürün',
+          tooltip: 'Ürünler',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.assignment_outlined),
+          label: 'Talep',
+          tooltip: 'Talepler',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.shopping_cart),
+          label: 'Sepet',
+          tooltip: 'Sepet',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.point_of_sale),
+          label: 'Satış',
+          tooltip: 'Satışlar',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.bar_chart_rounded),
+          label: 'Rapor',
+          tooltip: 'Raporlar',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person),
+          label: 'Profil',
+          tooltip: 'Profil',
+        ),
       ];
     } else if (loggedIn) {
       pages = const [
@@ -102,14 +126,36 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final tabIndex = ref.watch(homeShellTabProvider);
     final safeIndex = tabIndex.clamp(0, pages.length - 1);
 
+    final navigationBar = NavigationBar(
+      selectedIndex: safeIndex,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      onDestinationSelected: (i) =>
+          ref.read(homeShellTabProvider.notifier).state = i,
+      destinations: destinations,
+    );
+
     return Scaffold(
       body: pages[safeIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: safeIndex,
-        onDestinationSelected: (i) =>
-            ref.read(homeShellTabProvider.notifier).state = i,
-        destinations: destinations,
-      ),
+      bottomNavigationBar: isStaff
+          ? Theme(
+              data: Theme.of(context).copyWith(
+                navigationBarTheme: NavigationBarThemeData(
+                  height: 64,
+                  labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                    return Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontSize: 9,
+                          height: 1.0,
+                          letterSpacing: -0.1,
+                        );
+                  }),
+                  iconTheme: WidgetStateProperty.resolveWith((_) {
+                    return const IconThemeData(size: 21);
+                  }),
+                ),
+              ),
+              child: navigationBar,
+            )
+          : navigationBar,
     );
   }
 }

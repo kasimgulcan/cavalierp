@@ -11,6 +11,10 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    if (options.path.toLowerCase().contains('/auth/exec')) {
+      handler.next(options);
+      return;
+    }
     final token = await _tokenStorage.getAccessToken();
     if (token != null && token.isNotEmpty) {
       final bearer = 'Bearer $token';

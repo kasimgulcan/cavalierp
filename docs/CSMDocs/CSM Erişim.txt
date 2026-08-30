@@ -1,0 +1,11 @@
+*** ERİŞİM
+
+db.devcloud.com.tr,1430
+TSCAdmin
+tsc!Admin@2026
+
+CavaliERPAdmin
+cerp321*
+
+OpsPilotAdmin
+ops321*

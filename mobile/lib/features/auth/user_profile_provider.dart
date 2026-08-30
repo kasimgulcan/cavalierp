@@ -15,9 +15,14 @@ final userProfileProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
 });
 
 final isStaffProvider = Provider<bool>((ref) {
+  final storedRole = ref.watch(lastKnownRoleProvider);
   final profile = ref.watch(userProfileProvider);
   return profile.maybeWhen(
-    data: (p) => p?.stringField('Role') == 'Staff',
-    orElse: () => false,
+    data: (p) {
+      final role = p?.stringField('Role');
+      if (role != null && role.isNotEmpty) return role == 'Staff';
+      return storedRole == 'Staff';
+    },
+    orElse: () => storedRole == 'Staff',
   );
 });

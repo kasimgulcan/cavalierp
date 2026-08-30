@@ -28,27 +28,15 @@ class _CheckoutDiscountSectionState extends State<CheckoutDiscountSection> {
   @override
   void initState() {
     super.initState();
-    _percent.text = _formatPercent(widget.initialDiscount.percent);
-    _amount.text = formatDecimalInput(widget.initialDiscount.fixedAmount);
+    _percent.text = formatDiscountField(widget.initialDiscount.percent);
+    _amount.text = formatDiscountField(widget.initialDiscount.fixedAmount);
     WidgetsBinding.instance.addPostFrameCallback((_) => _notify());
-  }
-
-  String _formatPercent(double value) {
-    if (value == value.roundToDouble()) {
-      return value.round().toString();
-    }
-    return formatDecimalInput(value);
   }
 
   @override
   void didUpdateWidget(covariant CheckoutDiscountSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.subtotal != widget.subtotal) {
-      _notify();
-    }
-    if (oldWidget.initialDiscount != widget.initialDiscount) {
-      _percent.text = _formatPercent(widget.initialDiscount.percent);
-      _amount.text = formatDecimalInput(widget.initialDiscount.fixedAmount);
       _notify();
     }
   }
@@ -70,9 +58,6 @@ class _CheckoutDiscountSectionState extends State<CheckoutDiscountSection> {
   void _notify() {
     final input = _currentInput();
     final clampedFixed = input.fixedDiscountAmount(widget.subtotal);
-    if (clampedFixed != input.fixedAmount) {
-      _amount.text = formatDecimalInput(clampedFixed);
-    }
     widget.onDiscountChanged(
       CheckoutDiscountInput(
         percent: input.percent,

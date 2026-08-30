@@ -10,6 +10,8 @@ public sealed class ExecSpService(
     SqlProcedureCatalog procedureCatalog,
     SqlSpExecutor executor,
     JwtTokenService jwtTokenService,
+    IRefreshTokenStore refreshTokenStore,
+    IConfiguration configuration,
     ProductImageCatalog productImageCatalog,
     ILogger<ExecSpService> logger)
 {
@@ -56,7 +58,7 @@ public sealed class ExecSpService(
             var result = await executor.ExecuteAsync(def, spParams, ct);
             if (result.Success)
             {
-                result = EnrichAuthResponse(request.Sp, result);
+                result = await EnrichAuthResponseAsync(request.Sp, request.Params, result, ct);
                 result = await EnrichProductResponseAsync(request.Sp, result, ct);
                 result = await EnrichOrderRequestResponseAsync(request.Sp, result, ct);
             }
@@ -73,18 +75,21 @@ public sealed class ExecSpService(
         }
     }
 
-    private ExecSpResponse EnrichAuthResponse(string spAlias, ExecSpResponse result)
+    private async Task<ExecSpResponse> EnrichAuthResponseAsync(
+        string spAlias,
+        Dictionary<string, object?>? requestParams,
+        ExecSpResponse result,
+        CancellationToken ct)
     {
-        if (!spAlias.Equals("Auth.Login", StringComparison.OrdinalIgnoreCase)
-            && !spAlias.Equals("Auth.Register", StringComparison.OrdinalIgnoreCase))
-        {
+        if (!AuthTokenEnricher.IsAuthTokenAlias(spAlias))
             return result;
-        }
 
         if (result.Data is not List<Dictionary<string, object?>> rows || rows.Count == 0)
         {
             if (spAlias.Equals("Auth.Login", StringComparison.OrdinalIgnoreCase))
                 return ExecSpResponse.Fail("Geçersiz kullanıcı adı veya şifre.");
+            if (spAlias.Equals("Auth.RefreshToken", StringComparison.OrdinalIgnoreCase))
+                return ExecSpResponse.Fail("Oturum geçersiz veya süresi doldu. Tekrar giriş yapın.");
 
             return result;
         }
@@ -97,7 +102,18 @@ public sealed class ExecSpService(
         var username = row.GetValueOrDefault("Username")?.ToString() ?? string.Empty;
         var role = row.GetValueOrDefault("Role")?.ToString() ?? "Member";
 
+        var incomingRefresh = AuthTokenEnricher.IncomingRefreshToken(spAlias, requestParams);
+        if (!string.IsNullOrEmpty(incomingRefresh))
+            await refreshTokenStore.RevokeAsync(incomingRefresh, ct);
+
         var tokens = jwtTokenService.CreateTokens(userId, username, role);
+        var refreshDays = int.Parse(configuration["Jwt:RefreshTokenDays"] ?? "30");
+        await refreshTokenStore.SaveAsync(
+            userId,
+            tokens.RefreshToken,
+            DateTime.Now.AddDays(refreshDays),
+            ct);
+
         return ExecSpResponse.Ok(new
         {
             user = row,

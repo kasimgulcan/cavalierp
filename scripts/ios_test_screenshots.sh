@@ -3,8 +3,8 @@
 set -euo pipefail
 
 DEVICE_ID="${1:?device udid required}"
-EMAIL="${2:-}"
-PASSWORD="${3:-}"
+LOGIN_USER="${2:-${SCREENSHOT_USERNAME:-${SCREENSHOT_EMAIL:-}}}"
+PASSWORD="${3:-${SCREENSHOT_PASSWORD:-}}"
 LOG="${4:-flutter-test.log}"
 OUT_DIR="${5:-collected-screenshots}"
 
@@ -17,7 +17,8 @@ echo "Running integration_test on device $DEVICE_ID..."
 set +e
 flutter test integration_test/app_screenshots_test.dart \
   -d "$DEVICE_ID" \
-  --dart-define=SCREENSHOT_EMAIL="$EMAIL" \
+  --dart-define=SCREENSHOT_USERNAME="$LOGIN_USER" \
+  --dart-define=SCREENSHOT_EMAIL="$LOGIN_USER" \
   --dart-define=SCREENSHOT_PASSWORD="$PASSWORD" \
   >> "$LOG" 2>&1
 test_exit=$?

@@ -25,11 +25,7 @@ class OrderRequestTotalBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final netLabel = formatPriceWithSymbol(
-      roundSaleMoney(total),
-      currencySymbol,
-      decimals: 0,
-    );
+    final netLabel = formatSaleMoney(roundSaleMoney(total), currencySymbol);
 
     return Material(
       elevation: 8,
@@ -72,10 +68,9 @@ class OrderRequestTotalBar extends StatelessWidget {
                 const SizedBox(height: 6),
                 _TotalRow(
                   label: 'Toplam',
-                  value: formatPriceWithSymbol(
+                  value: formatSaleMoney(
                     roundSaleMoney(subtotal!),
                     currencySymbol,
-                    decimals: 0,
                   ),
                   theme: theme,
                 ),
@@ -83,7 +78,7 @@ class OrderRequestTotalBar extends StatelessWidget {
                 _TotalRow(
                   label: 'İndirim',
                   value:
-                      '- ${formatPriceWithSymbol(roundSaleMoney(discountAmount!), currencySymbol, decimals: 0)}',
+                      '- ${formatSaleMoney(roundSaleMoney(discountAmount!), currencySymbol)}',
                   theme: theme,
                   valueColor: colorScheme.error,
                 ),

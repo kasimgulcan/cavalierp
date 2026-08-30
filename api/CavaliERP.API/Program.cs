@@ -1,5 +1,6 @@
 using System.Text;
 using CsmStok.Api.Services;
+using CsmStok.Api.Services.Ecommerce;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
@@ -68,13 +69,63 @@ builder.Services.AddSingleton<SqlProcedureCatalog>();
 builder.Services.AddSingleton<SpWhitelist>();
 builder.Services.AddSingleton<SqlSpExecutor>();
 builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddSingleton<IRefreshTokenStore, SqlRefreshTokenStore>();
 builder.Services.AddSingleton<ExecSpService>();
+builder.Services.Configure<EcommerceSyncOptions>(
+    builder.Configuration.GetSection(EcommerceSyncOptions.SectionName));
+builder.Services.AddSingleton<IEcommerceStockRepository, EcommerceStockRepository>();
+builder.Services.AddSingleton<EcommerceStockService>();
+builder.Services.AddSingleton<EcommerceOutboundDispatcher>();
+builder.Services.AddHostedService<EcommerceOutboundWorker>();
+builder.Services.AddSingleton<EcommerceTesterInbox>();
+builder.Services.AddHttpClient<EcommerceShopSimulator>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient(EcommerceOutboundDispatcher.HttpClientName, client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 var app = builder.Build();
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
+
 app.UseAuthentication();
 app.UseAuthorization();
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/tester"))
+    {
+        var testerOptions = context.RequestServices
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<EcommerceSyncOptions>>()
+            .Value;
+        if (!testerOptions.TesterEnabled)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { success = false, error = "Not found." });
+            return;
+        }
+
+        if (context.Request.Path == "/tester")
+        {
+            context.Response.Redirect($"{context.Request.PathBase}/tester/");
+            return;
+        }
+
+        if (context.Request.Path == "/tester/stock-events/")
+            context.Request.Path = "/tester/stock-events";
+    }
+
+    await next();
+});
+app.UseDefaultFiles();
+app.UseStaticFiles();
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/integrations/ecommerce"),
+    branch => branch.UseMiddleware<EcommerceHmacMiddleware>());
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 app.MapGet("/health/db", async (IConfiguration config) =>

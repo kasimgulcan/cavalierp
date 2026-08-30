@@ -1,6 +1,14 @@
 import '../../core/format/price_format.dart';
 import 'models/cart_line.dart';
 
+String formatDiscountField(double value) {
+  if (value == 0) return '';
+  if (value == value.roundToDouble()) {
+    return value.round().toString();
+  }
+  return formatDecimalInput(value);
+}
+
 /// % indirim ve tutar indirimi birlikte uygulanır:
 /// önce yüzde, ardından kalan tutar üzerinden sabit tutar.
 class CheckoutDiscountInput {

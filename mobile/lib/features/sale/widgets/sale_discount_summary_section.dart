@@ -45,11 +45,7 @@ class SaleDiscountSummarySection extends StatelessWidget {
             const SizedBox(height: 12),
             _Row(
               label: 'Ara toplam',
-              value: formatPriceWithSymbol(
-                roundSaleMoney(subtotal),
-                symbol,
-                decimals: 0,
-              ),
+              value: formatSaleMoney(roundSaleMoney(subtotal), symbol),
               theme: theme,
             ),
             if (discount.percent > 0) ...[
@@ -58,7 +54,7 @@ class SaleDiscountSummarySection extends StatelessWidget {
                 label:
                     '% indirim (${discount.percent == discount.percent.roundToDouble() ? discount.percent.round() : discount.percent}%)',
                 value:
-                    '- ${formatPriceWithSymbol(roundSaleMoney(percentAmount), symbol, decimals: 0)}',
+                    '- ${formatSaleMoney(roundSaleMoney(percentAmount), symbol)}',
                 theme: theme,
                 valueColor: colorScheme.error,
               ),
@@ -68,7 +64,7 @@ class SaleDiscountSummarySection extends StatelessWidget {
               _Row(
                 label: 'Tutar indirimi',
                 value:
-                    '- ${formatPriceWithSymbol(roundSaleMoney(fixedAmount), symbol, decimals: 0)}',
+                    '- ${formatSaleMoney(roundSaleMoney(fixedAmount), symbol)}',
                 theme: theme,
                 valueColor: colorScheme.error,
               ),
@@ -78,11 +74,7 @@ class SaleDiscountSummarySection extends StatelessWidget {
             const SizedBox(height: 8),
             _Row(
               label: 'Net toplam',
-              value: formatPriceWithSymbol(
-                roundSaleMoney(netTotal),
-                symbol,
-                decimals: 0,
-              ),
+              value: formatSaleMoney(roundSaleMoney(netTotal), symbol),
               theme: theme,
               emphasized: true,
             ),

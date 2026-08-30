@@ -1,0 +1,27 @@
+Satış kısmında;
+
+not alanı genişlet
+
+email ve telefon opptional olacak
+
+ödeme tipi: fatura
+
+EFT / HAVALE : IBAN olacak
+
+
+ günlük rapor
+
+
+
+pproduct name
+
+style
+color
+size
+
+alt toplamda 
+%indirim
+tutar indrim
+
+kullanıcı kendi indirimini de yazabilecek
+

@@ -208,8 +208,43 @@ class _CheckoutLineTileState extends ConsumerState<CheckoutLineTile> {
                 ),
               ),
               onTap: () => _editingUnitPrice = true,
+              onChanged: (value) {
+                _editingUnitPrice = true;
+                final parsed = parseDecimalInput(value);
+                if (parsed == null) return;
+                ref.read(cartProvider.notifier).updateUnitPrice(
+                      line.product.sizeId,
+                      parsed,
+                    );
+              },
               onSubmitted: (_) => _onUnitPriceSubmitted(line),
               onEditingComplete: () => _onUnitPriceSubmitted(line),
+            ),
+            const SizedBox(height: 4),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              title: Text(
+                'Hediye',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                'Stok düşer, bedel 0 olur',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              value: line.isGift,
+              onChanged: (value) {
+                _editingUnitPrice = false;
+                ref.read(cartProvider.notifier).setGift(
+                      product.sizeId,
+                      value == true,
+                    );
+              },
             ),
           ],
         ),

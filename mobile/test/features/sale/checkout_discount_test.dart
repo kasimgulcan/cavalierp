@@ -15,10 +15,15 @@ Product _product({required int sizeId, required double price}) => Product(
     );
 
 void main() {
-  test('roundSaleMoney rounds to whole lira', () {
-    expect(roundSaleMoney(73999.98), 74000);
-    expect(roundSaleMoney(73999.4), 73999);
-    expect(roundSaleMoney(73999.5), 74000);
+  test('roundSaleMoney rounds to kuruş', () {
+    expect(roundSaleMoney(21.044), 21.04);
+    expect(roundSaleMoney(21.045), 21.05);
+  });
+
+  test('formatDiscountField leaves zero empty', () {
+    expect(formatDiscountField(0), '');
+    expect(formatDiscountField(10), '10');
+    expect(formatDiscountField(21.04), isNotEmpty);
   });
 
   test('percent discount only', () {
@@ -89,7 +94,7 @@ void main() {
     expect(payload.first['UnitPrice'], 33333.34);
     expect(
       lineTotalFromUnitPrice(payload.first['UnitPrice'] as double, 3),
-      100000,
+      100000.02,
     );
   });
 }

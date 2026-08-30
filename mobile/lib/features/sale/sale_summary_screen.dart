@@ -27,7 +27,7 @@ class SaleSummaryScreen extends ConsumerWidget {
     final currency = ref.watch(selectedCurrencyProvider);
     final symbol = currencySymbolFrom(currency);
     final totalLabel = _totalAmount != null
-        ? formatPriceWithSymbol(roundSaleMoney(_totalAmount!), symbol, decimals: 0)
+        ? formatSaleMoney(roundSaleMoney(_totalAmount!), symbol)
         : null;
 
     return Scaffold(

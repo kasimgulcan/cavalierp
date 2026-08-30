@@ -69,7 +69,7 @@ class CartScreen extends ConsumerWidget {
           : CartSummaryBar(
               itemCount: lines.length,
               totalLabel: formatCartTotal(total, symbol),
-              actionLabel: isStaff ? 'Satışı Tamamla' : 'Talep Gönder',
+              actionLabel: isStaff ? 'İleri' : 'Talep Gönder',
               onAction: () {
                 final loggedIn =
                     ref.read(authStateProvider).valueOrNull ?? false;

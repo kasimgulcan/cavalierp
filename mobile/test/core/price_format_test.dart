@@ -6,11 +6,13 @@ void main() {
     expect(formatPrice(1234.56), '1.234,56');
     expect(formatPrice(1000000), '1.000.000,00');
     expect(formatPriceWithSymbol(99.5, '€'), '99,50 €');
-    expect(formatPrice(roundSaleMoney(73999.98), decimals: 0), '74.000');
+    expect(formatPrice(roundSaleMoney(21.044), decimals: 2), '21,04');
   });
 
-  test('roundSaleMoney rounds to whole lira', () {
-    expect(roundSaleMoney(73999.98), 74000);
+  test('roundSaleMoney rounds to kuruş', () {
+    expect(roundSaleMoney(21.044), 21.04);
+    expect(roundSaleMoney(21.045), 21.05);
+    expect(roundSaleMoney(73999.984), 73999.98);
   });
 
   test('parseDecimalInput accepts comma decimals', () {

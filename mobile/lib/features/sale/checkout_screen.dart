@@ -5,11 +5,14 @@ import '../auth/auth_provider.dart';
 import 'cart_provider.dart';
 import 'checkout_note.dart';
 import 'checkout_discount.dart';
+import 'checkout_draft.dart';
 import 'currency_display.dart';
 import 'currency_provider.dart';
 import 'currency_selection.dart';
+import 'home_shell_tab_provider.dart';
 import 'pending_order_checkout_provider.dart';
 import 'order_request_provider.dart';
+import 'sale_provider.dart';
 import 'widgets/cart_summary_bar.dart';
 import 'widgets/checkout_discount_section.dart';
 import 'widgets/checkout_form_section.dart';
@@ -43,12 +46,37 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   CheckoutDiscountInput _discount = const CheckoutDiscountInput();
 
   @override
+  void initState() {
+    super.initState();
+    final draft = ref.read(checkoutDraftProvider);
+    _customer.text = draft.customer;
+    _phone.text = draft.phone;
+    _email.text = draft.email;
+    _note.text = draft.note;
+    _paymentTypeId = draft.paymentTypeId;
+    _discount = draft.discount;
+  }
+
+  @override
   void dispose() {
     _customer.dispose();
     _phone.dispose();
     _email.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  void _saveDraft() {
+    ref.read(checkoutDraftProvider.notifier).replace(
+          CheckoutDraft(
+            customer: _customer.text,
+            phone: _phone.text,
+            email: _email.text,
+            note: _note.text,
+            paymentTypeId: _paymentTypeId,
+            discount: _discount,
+          ),
+        );
   }
 
   void _applyPendingCheckout(PendingOrderCheckout pending) {
@@ -58,39 +86,117 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _phone.text = pending.phone ?? '';
     _email.text = pending.email ?? '';
     _note.text = pending.note ?? '';
+    _saveDraft();
+  }
+
+  void _goAddProducts() {
+    _saveDraft();
+    ref.read(homeShellTabProvider.notifier).state = kHomeShellProductsTabIndex;
+    context.go('/home');
   }
 
   Future<void> _complete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final lines = ref.read(cartProvider);
+        final currencyId =
+            effectiveCurrencyId(ref.read(selectedCurrencyIdProvider));
+        final subtotal = ref.read(cartProvider.notifier).totalFor(currencyId);
+        final total = _discount.grandTotal(subtotal);
+        final currency = ref.read(selectedCurrencyProvider);
+        final symbol = currencySymbolFrom(currency);
+        final customer = _customer.text.trim();
+        final editingId = ref.read(editingSaleIdProvider);
+        return AlertDialog(
+          title: Text(
+            editingId == null ? 'Satışı tamamla?' : 'Satışı güncelle?',
+          ),
+          content: Text(
+            [
+              if (customer.isNotEmpty) customer,
+              '${lines.length} kalem',
+              formatCartTotal(total, symbol),
+            ].join('\n'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(editingId == null ? 'Tamamla' : 'Kaydet'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
     final currencyId = effectiveCurrencyId(ref.read(selectedCurrencyIdProvider));
     final pending = ref.read(pendingOrderCheckoutProvider);
-    final subtotal = ref.read(cartProvider.notifier).totalFor(currencyId);
+    final editingId = ref.read(editingSaleIdProvider);
 
     setState(() => _loading = true);
-    final result = await ref.read(cartProvider.notifier).completeSale(
-          currencyId: currencyId,
-          customer: _customer.text.trim().isEmpty ? null : _customer.text.trim(),
-          paymentTypeId: _paymentTypeId,
-          note: buildCheckoutNote(
-            note: _note.text,
-            phone: _phone.text,
-            email: _email.text,
-          ),
-          orderRequestId: pending?.orderRequestId,
-          discountPercent: _discount.percent,
-          discountFixedAmount: _discount.fixedAmount,
-        );
+    final result = editingId == null
+        ? await ref.read(cartProvider.notifier).completeSale(
+              currencyId: currencyId,
+              customer:
+                  _customer.text.trim().isEmpty ? null : _customer.text.trim(),
+              paymentTypeId: _paymentTypeId,
+              note: buildCheckoutNote(
+                note: _note.text,
+                phone: _phone.text,
+                email: _email.text,
+              ),
+              orderRequestId: pending?.orderRequestId,
+              discountPercent: _discount.percent,
+              discountFixedAmount: _discount.fixedAmount,
+            )
+        : await ref.read(cartProvider.notifier).updateSale(
+              saleId: editingId,
+              currencyId: currencyId,
+              customer:
+                  _customer.text.trim().isEmpty ? null : _customer.text.trim(),
+              paymentTypeId: _paymentTypeId,
+              note: buildCheckoutNote(
+                note: _note.text,
+                phone: _phone.text,
+                email: _email.text,
+              ),
+              discountPercent: _discount.percent,
+              discountFixedAmount: _discount.fixedAmount,
+            );
     setState(() => _loading = false);
     if (!mounted) return;
     if (result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Satış kaydedilemedi')),
+        SnackBar(
+          content: Text(
+            editingId == null
+                ? 'Satış kaydedilemedi'
+                : 'Satış güncellenemedi',
+          ),
+        ),
       );
       return;
     }
     ref.read(pendingOrderCheckoutProvider.notifier).state = null;
+    ref.read(editingSaleIdProvider.notifier).state = null;
+    ref.read(checkoutDraftProvider.notifier).clear();
     ref.read(cartProvider.notifier).clear();
     if (pending != null) {
       ref.invalidate(orderDetailProvider(pending.orderRequestId));
+    }
+    if (editingId != null) {
+      ref.invalidate(saleDetailProvider(editingId));
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/sales/$editingId');
+      }
+      return;
     }
     context.go('/sale-summary', extra: result);
   }
@@ -100,6 +206,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final paymentTypes = ref.watch(_paymentTypesProvider);
     final lines = ref.watch(cartProvider);
     final pending = ref.watch(pendingOrderCheckoutProvider);
+    final editingId = ref.watch(editingSaleIdProvider);
     if (pending != null) {
       _applyPendingCheckout(pending);
     }
@@ -113,14 +220,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return PopScope(
       onPopInvokedWithResult: (didPop, _) {
         if (didPop && !_loading) {
-          ref.read(pendingOrderCheckoutProvider.notifier).state = null;
+          _saveDraft();
         }
       },
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            pending == null ? 'Satış' : 'Talep #${pending.orderRequestId} → Satış',
+            editingId != null
+                ? 'Satış #$editingId düzenle'
+                : pending == null
+                    ? 'Satış'
+                    : 'Talep #${pending.orderRequestId} → Satış',
           ),
+          actions: [
+            TextButton(
+              onPressed: _goAddProducts,
+              child: const Text('Ürün ekle'),
+            ),
+          ],
         ),
         body: lines.isEmpty
             ? const Center(child: Text('Sepet boş'))
@@ -135,6 +252,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           children: [
                             TextField(
                               controller: _customer,
+                              onChanged: (_) => _saveDraft(),
                               decoration: const InputDecoration(
                                 labelText: 'Müşteri adı (opsiyonel)',
                                 hintText: 'Yeni müşteri adı yazabilirsiniz',
@@ -144,6 +262,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             const SizedBox(height: 12),
                             TextField(
                               controller: _phone,
+                              onChanged: (_) => _saveDraft(),
                               keyboardType: TextInputType.phone,
                               decoration: const InputDecoration(
                                 labelText: 'Telefon (opsiyonel)',
@@ -153,6 +272,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             const SizedBox(height: 12),
                             TextField(
                               controller: _email,
+                              onChanged: (_) => _saveDraft(),
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
                                 labelText: 'E-posta (opsiyonel)',
@@ -184,8 +304,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                     ),
                                   ),
                                 ],
-                                onChanged: (v) =>
-                                    setState(() => _paymentTypeId = v),
+                                onChanged: (v) {
+                                  setState(() => _paymentTypeId = v);
+                                  _saveDraft();
+                                },
                               ),
                               loading: () => const LinearProgressIndicator(),
                               error: (_, _) =>
@@ -213,6 +335,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           children: [
                             TextField(
                               controller: _note,
+                              onChanged: (_) => _saveDraft(),
                               minLines: 4,
                               maxLines: 6,
                               decoration: const InputDecoration(
@@ -226,8 +349,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         const SizedBox(height: 12),
                         CheckoutDiscountSection(
                           subtotal: subtotal,
-                          onDiscountChanged: (value) =>
-                              setState(() => _discount = value),
+                          initialDiscount: _discount,
+                          onDiscountChanged: (value) {
+                            setState(() => _discount = value);
+                            _saveDraft();
+                          },
                         ),
                       ],
                     ),
@@ -239,7 +365,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         discountTotal > 0 ? discountTotal : null,
                     discountSymbol: symbol,
                     totalLabel: formatCartTotal(total, symbol),
-                    actionLabel: _loading ? 'Kaydediliyor…' : 'Satışı Tamamla',
+                    actionLabel: _loading
+                        ? 'Kaydediliyor…'
+                        : editingId == null
+                            ? 'Satışı Tamamla'
+                            : 'Satışı Kaydet',
                     enabled: !_loading,
                     onAction: _loading ? null : _complete,
                   ),

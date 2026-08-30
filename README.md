@@ -1,54 +1,67 @@
-# CSM.Stok
+# CavaliERP
 
-Mobil satış uygulaması (Flutter) + SP gateway API (ASP.NET Core).
+Personel satış ve müşteri talep uygulaması: Flutter (iOS/Android) + ASP.NET Core API + SQL Server.
+
+Canlı API: `https://app.devcloud.com.tr/cavalierp/api`
 
 ## Yapı
 
-- `mobile/` — Flutter iOS/Android uygulaması
-- `api/` — IIS üzerinde çalışan Web API
-- `sql/` — `API_*` stored procedure script'leri
-- `docs/superpowers/specs/` — Tasarım spesifikasyonu
-- `docs/superpowers/plans/` — Implementation plan
-- `docs/deploy-iis.md` — IIS deployment rehberi
+| Klasör | İçerik |
+|--------|--------|
+| `mobile/` | Flutter uygulaması (`cavalierp`) |
+| `api/CavaliERP.API/` | SP gateway, auth, e-ticaret stok webhook |
+| `api/CavaliERP.API.TESTS/` | API birim testleri |
+| `sql/` | Şema ve incremental migration |
+| `docs/` | IIS, webhook ve tasarım notları |
+
+Solution: `api/CavaliERP.API.slnx`
 
 ## Geliştirme
 
 ### API
 
 ```powershell
-cd api\CsmStok.Api
+cd api\CavaliERP.API
 dotnet run --launch-profile http
 ```
 
-Health: `http://localhost:5160/health` (local)
+Health: `http://localhost:5160/health`
 
-Production: `https://app.devcloud.com.tr/cavalierp/api/health`
+Yerel ayar için `appsettings.Development.example.json` dosyasını `appsettings.Development.json` olarak kopyalayın.
 
 ### Mobil
 
 ```powershell
 cd mobile
-# Local
 flutter run --dart-define=API_BASE_URL=http://localhost:5160
-# Production
+```
+
+Canlı API:
+
+```powershell
 flutter run --dart-define=API_BASE_URL=https://app.devcloud.com.tr/cavalierp/api
 ```
 
 ### SQL
 
-| Dosya | Açıklama |
+| Dosya | Ne zaman |
 |-------|----------|
-| `sql/Migration.sql` | Tablo `ALTER` değişiklikleri (canlı DB, veri korunur) |
-| `sql/Migrate_StoredProcedures.sql` | Tüm `API_*` SP tanımları (`CREATE OR ALTER`) |
+| `sql/db.sql` | Tam şema (yeni ortam) |
+| `sql/Migrate_MobileSaleUx.sql` | Mevcut DB üzerine satış UX güncellemesi |
+
+### Test
 
 ```powershell
-# Canlı: önce Migration.sql (tablo), ardından Migrate_StoredProcedures.sql (SP)
+dotnet test api\CavaliERP.API.slnx
+cd mobile; flutter test
 ```
 
+E-ticaret simülatörü (API ile birlikte, `EcommerceSync:TesterEnabled` açık olmalı): `/tester/`
 
-## Test
+## Yayın
+
+IIS adımları: [docs/deploy-iis.md](docs/deploy-iis.md)
 
 ```powershell
-dotnet test api\CsmStok.Api.Tests
-cd mobile && flutter test
+.\scripts\publish-api.ps1
 ```

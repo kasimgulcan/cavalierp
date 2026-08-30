@@ -3,13 +3,22 @@ import '../../core/format/price_format.dart';
 import '../../core/network/sp_client.dart';
 import '../auth/auth_provider.dart';
 import 'checkout_discount.dart';
+import 'checkout_draft.dart';
 import 'currency_selection.dart';
 import 'models/cart_line.dart';
 import 'models/order_request.dart';
 import 'models/product.dart';
+import 'models/sale.dart';
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartLine>>((ref) {
-  return CartNotifier(ref.watch(spClientProvider));
+  final notifier = CartNotifier(ref.watch(spClientProvider));
+  ref.listen(authStateProvider, (previous, next) {
+    if (next.valueOrNull != true) {
+      notifier.clear();
+      ref.read(editingSaleIdProvider.notifier).state = null;
+    }
+  });
+  return notifier;
 });
 
 class CartNotifier extends StateNotifier<List<CartLine>> {
@@ -54,6 +63,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
             quantity: quantity,
             unitPriceOverride: line.unitPriceOverride,
             listPriceOverride: line.listPriceOverride,
+            isGift: line.isGift,
           )
         else
           line,
@@ -69,6 +79,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
             quantity: line.quantity,
             unitPriceOverride: unitPrice < 0 ? 0 : unitPrice,
             listPriceOverride: line.listPriceOverride,
+            isGift: line.isGift && unitPrice <= 0,
           )
         else
           line,
@@ -80,6 +91,37 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
   }
 
   void clear() => state = [];
+
+  void setGift(int sizeId, bool isGift) {
+    state = [
+      for (final line in state)
+        if (line.product.sizeId == sizeId)
+          CartLine(
+            product: line.product,
+            quantity: line.quantity,
+            unitPriceOverride: isGift ? 0 : null,
+            listPriceOverride: line.listPriceOverride,
+            isGift: isGift,
+          )
+        else
+          line,
+    ];
+  }
+
+  void loadFromSaleDetail(SaleDetail detail) {
+    final currencyId = detail.currencyId ?? kDefaultCurrencyId;
+    state = [
+      for (final line in detail.lines)
+        CartLine(
+          product: _productFromSaleLine(line, currencyId),
+          quantity: line.quantity,
+          unitPriceOverride: line.unitPrice,
+          listPriceOverride:
+              line.listPrice > 0 ? line.listPrice : line.unitPrice,
+          isGift: line.unitPrice == 0 && line.listPrice > 0,
+        ),
+    ];
+  }
 
   void loadFromOrderRequest(OrderRequestDetail detail) {
     final currencyId = detail.currencyId ?? kDefaultCurrencyId;
@@ -93,6 +135,18 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
               line.listPrice > 0 ? line.listPrice : line.unitPrice,
         ),
     ];
+  }
+
+  Product _productFromSaleLine(SaleLine line, int currencyId) {
+    final price = line.listPrice > 0 ? line.listPrice : line.unitPrice;
+    return Product(
+      sizeId: line.sizeId,
+      productName: line.product,
+      priceTL: currencyId == kDefaultCurrencyId ? price : 0,
+      priceEUR: currencyId == kEurCurrencyId ? price : 0,
+      priceUSD: currencyId == kUsdCurrencyId ? price : 0,
+      stockQty: (line.stockQty ?? 0).toDouble(),
+    );
   }
 
   Product _productFromOrderLine(OrderRequestLine line, int currencyId) {
@@ -140,6 +194,32 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
       'Lines': lines,
       'Note': note ?? '',
       'OrderRequestId': ?orderRequestId,
+      'DiscountPercent': discountPercent,
+      'DiscountFixedAmount': roundSaleMoney(discountFixedAmount),
+    });
+
+    if (!response.success) return null;
+    final rows = response.data as List<dynamic>;
+    if (rows.isEmpty) return null;
+    return Map<String, dynamic>.from(rows.first as Map);
+  }
+
+  Future<Map<String, dynamic>?> updateSale({
+    required int saleId,
+    required int currencyId,
+    String? customer,
+    int? paymentTypeId,
+    String? note,
+    double discountPercent = 0,
+    double discountFixedAmount = 0,
+  }) async {
+    final lines = _linesPayload(currencyId);
+    final response = await _spClient.exec('Sale.Update', {
+      'SaleId': saleId,
+      'Customer': customer,
+      'PaymentTypeId': paymentTypeId,
+      'Lines': lines,
+      'Note': note ?? '',
       'DiscountPercent': discountPercent,
       'DiscountFixedAmount': roundSaleMoney(discountFixedAmount),
     });

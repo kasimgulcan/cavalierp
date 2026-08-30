@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # One build, then per-screen config JSON + simctl launch + screenshot.
+# Staff demo account (e.g. demo-demo) should use SCREENSHOT_USERNAME.
 set -euo pipefail
 
 DEVICE_ID="${1:?device udid required}"
-EMAIL="${2:-}"
-PASSWORD="${3:-}"
+LOGIN_USER="${2:-${SCREENSHOT_USERNAME:-${SCREENSHOT_EMAIL:-}}}"
+PASSWORD="${3:-${SCREENSHOT_PASSWORD:-}}"
 OUT_DIR="${4:-collected-screenshots}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -38,12 +39,15 @@ push_config() {
   SCREENSHOT_ROUTE="$route" \
   SCREENSHOT_TAB="$tab" \
   SCREENSHOT_AUTO_LOGIN="$auto_login" \
-  SCREENSHOT_EMAIL="$EMAIL" \
+  SCREENSHOT_USERNAME="$LOGIN_USER" \
+  SCREENSHOT_EMAIL="$LOGIN_USER" \
   SCREENSHOT_PASSWORD="$PASSWORD" \
   SCREENSHOT_CONFIG_PATH="$container/Documents/screenshot_config.json" \
   python3 <<'PY'
 import json, os, pathlib
 
+username = os.environ.get("SCREENSHOT_USERNAME", "").strip()
+email = os.environ.get("SCREENSHOT_EMAIL", "").strip()
 path = pathlib.Path(os.environ["SCREENSHOT_CONFIG_PATH"])
 path.write_text(
     json.dumps(
@@ -51,14 +55,18 @@ path.write_text(
             "route": os.environ["SCREENSHOT_ROUTE"],
             "tab": int(os.environ["SCREENSHOT_TAB"]),
             "autoLogin": os.environ["SCREENSHOT_AUTO_LOGIN"] == "true",
-            "email": os.environ.get("SCREENSHOT_EMAIL", ""),
+            "username": username,
+            "email": email,
             "password": os.environ.get("SCREENSHOT_PASSWORD", ""),
         },
         ensure_ascii=False,
     ),
     encoding="utf-8",
 )
-print(f"Config: route={os.environ['SCREENSHOT_ROUTE']} tab={os.environ['SCREENSHOT_TAB']}")
+print(
+    f"Config: route={os.environ['SCREENSHOT_ROUTE']} "
+    f"tab={os.environ['SCREENSHOT_TAB']} user={username or email}"
+)
 PY
 }
 
@@ -92,16 +100,20 @@ capture() {
 
 failed=0
 
+# Public screens (no login)
 capture "01-login" "/login" "false" "0" || failed=$((failed + 1))
 capture "02-register" "/register" "false" "0" || failed=$((failed + 1))
 
-if [ -n "$EMAIL" ] && [ -n "$PASSWORD" ]; then
-  capture "03-products" "/home" "true" "0" || failed=$((failed + 1))
-  capture "04-cart" "/home" "true" "2" || failed=$((failed + 1))
-  capture "05-scanner" "/home" "true" "0" || failed=$((failed + 1))
-  capture "06-profile" "/home" "true" "4" || failed=$((failed + 1))
+# Staff screens (demo-demo / staff role) — tab indices match home_shell staff layout
+if [ -n "$LOGIN_USER" ] && [ -n "$PASSWORD" ]; then
+  capture "03-products" "/home" "true" "0" || failed=$((failed + 1))  # Ürünler
+  capture "04-orders" "/home" "true" "1" || failed=$((failed + 1))    # Talepler
+  capture "05-cart" "/home" "true" "2" || failed=$((failed + 1))      # Sepet
+  capture "06-sales" "/home" "true" "3" || failed=$((failed + 1))     # Satışlar
+  capture "07-reports" "/home" "true" "4" || failed=$((failed + 1))   # Raporlar
+  capture "08-profile" "/home" "true" "5" || failed=$((failed + 1))   # Profil
 else
-  echo "::warning::SCREENSHOT_EMAIL/PASSWORD not set — skipping authenticated screens."
+  echo "::warning::SCREENSHOT_USERNAME/PASSWORD not set — skipping authenticated screens."
 fi
 
 bash "$ROOT/scripts/gather_screenshots.sh" "$OUT_DIR"

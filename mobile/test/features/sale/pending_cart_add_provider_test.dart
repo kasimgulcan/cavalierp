@@ -6,6 +6,8 @@ import 'package:cavalierp/features/sale/models/product.dart';
 import 'package:cavalierp/features/sale/pending_cart_add_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('apply adds queued product after login', () {
     final container = ProviderContainer(
       overrides: [

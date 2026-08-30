@@ -6,7 +6,7 @@ on:
 jobs:
   screenshots:
     runs-on: macos-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
 
     env:
       SCREENSHOT_OUT: ${{ github.workspace }}/collected-screenshots
@@ -85,15 +85,15 @@ jobs:
 
       - name: Capture screenshot tour
         id: tour
-        timeout-minutes: 40
+        timeout-minutes: 50
         env:
-          SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_DEMO_EMAIL }}
+          SCREENSHOT_USERNAME: ${{ secrets.SCREENSHOT_DEMO_USERNAME || secrets.SCREENSHOT_DEMO_EMAIL }}
           SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_DEMO_PASSWORD }}
         run: |
           mkdir -p "$SCREENSHOT_OUT"
           bash scripts/ios_screenshot_tour.sh \
             "$DEVICE_ID" \
-            "$SCREENSHOT_EMAIL" \
+            "$SCREENSHOT_USERNAME" \
             "$SCREENSHOT_PASSWORD" \
             "$SCREENSHOT_OUT"
 
@@ -123,8 +123,8 @@ jobs:
             echo "No valid screenshots (need PNG >= 80 KB with visible UI)."
             exit 1
           fi
-          if [ "$count" -lt 3 ]; then
-            echo "::warning::Only $count screenshot(s) captured; App Store prefers 3-5."
+          if [ "$count" -lt 5 ]; then
+            echo "::warning::Only $count screenshot(s) captured; expected at least 5 (login, register, staff tabs)."
           fi
 
       - name: Upload screenshots
