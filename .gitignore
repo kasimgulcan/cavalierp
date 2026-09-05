@@ -14,6 +14,7 @@ Desktop.ini
 # Agent / local tooling cache
 .superpowers/
 .cursor/skills/superpowers/
+.worktrees/
 
 # .NET
 [Bb]in/
