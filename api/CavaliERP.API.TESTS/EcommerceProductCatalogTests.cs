@@ -11,6 +11,12 @@ namespace CsmStok.Api.Tests;
 
 public class EcommerceProductCatalogTests
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
     [Fact]
     public void FromResultSets_MapsThreeSets_PreservesSqlColumnNames()
     {
@@ -82,5 +88,62 @@ public class EcommerceProductCatalogTests
         Assert.Equal("ABC", mapped["SKU CODE"]);
         Assert.Null(mapped["BARCODE GS1/EAN "]);
         Assert.Equal(9, mapped["SKU ID"]);
+    }
+
+    [Fact]
+    public async Task Snapshot_ReturnsWrapperAndSqlKeys()
+    {
+        var repo = new StubCatalogRepository(EcommerceProductCatalogMapper.FromResultSets(
+        [
+            [new Dictionary<string, object?> { ["SKU CODE"] = "SKU1", ["STYLE NAME"] = "TORONTO" }],
+            [new Dictionary<string, object?> { ["STYLE NAME"] = "ALASKA" }],
+            [new Dictionary<string, object?> { ["MODEL NAME"] = "ALISA KAPTAN" }],
+        ]));
+        var controller = new EcommerceProductCatalogController(
+            repo,
+            NullLogger<EcommerceProductCatalogController>.Instance);
+
+        var result = await controller.Snapshot(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(StatusCodes.Status200OK, ok.StatusCode ?? 200);
+        var json = JsonSerializer.Serialize(ok.Value, JsonOptions);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        Assert.Equal("cavalierp", root.GetProperty("source").GetString());
+        Assert.True(root.TryGetProperty("generatedAt", out _));
+        Assert.Equal("SKU1", root.GetProperty("skus")[0].GetProperty("SKU CODE").GetString());
+        Assert.Equal("TORONTO", root.GetProperty("skus")[0].GetProperty("STYLE NAME").GetString());
+        Assert.Equal("ALASKA", root.GetProperty("styleModels")[0].GetProperty("STYLE NAME").GetString());
+        Assert.Equal("ALISA KAPTAN", root.GetProperty("models")[0].GetProperty("MODEL NAME").GetString());
+    }
+
+    [Fact]
+    public async Task Snapshot_WhenRepositoryThrows_Returns500WithoutSqlText()
+    {
+        var repo = new ThrowingCatalogRepository(new InvalidOperationException("GetSKUSnapshot must return 3 result sets."));
+        var controller = new EcommerceProductCatalogController(
+            repo,
+            NullLogger<EcommerceProductCatalogController>.Instance);
+
+        var result = await controller.Snapshot(CancellationToken.None);
+
+        var obj = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status500InternalServerError, obj.StatusCode);
+        var json = JsonSerializer.Serialize(obj.Value, JsonOptions);
+        Assert.Contains("Unable to load product catalog.", json);
+        Assert.DoesNotContain("GetSKUSnapshot must return 3 result sets.", json);
+    }
+
+    private sealed class StubCatalogRepository(EcommerceProductCatalogSnapshot snapshot) : IEcommerceProductCatalogRepository
+    {
+        public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(snapshot);
+    }
+
+    private sealed class ThrowingCatalogRepository(Exception exception) : IEcommerceProductCatalogRepository
+    {
+        public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(CancellationToken cancellationToken) =>
+            Task.FromException<EcommerceProductCatalogSnapshot>(exception);
     }
 }

@@ -20,6 +20,13 @@ public class EcommerceHmacTests
     }
 
     [Fact]
+    public void CanonicalGet_ProductCatalogSnapshotPath()
+    {
+        var canonical = EcommerceHmac.CanonicalGet("1700000000", "/integrations/ecommerce/products/snapshot/");
+        Assert.Equal("1700000000.GET./integrations/ecommerce/products/snapshot", canonical);
+    }
+
+    [Fact]
     public void SignaturesEqual_AcceptsMatchingHmac()
     {
         var canonical = EcommerceHmac.CanonicalPost("1700000000", "{}");
