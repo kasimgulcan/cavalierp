@@ -1,6 +1,5 @@
 using System.Data;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using CsmStok.Api.Controllers;
 using CsmStok.Api.Services.Ecommerce;
 using Microsoft.AspNetCore.Http;
@@ -11,11 +10,7 @@ namespace CsmStok.Api.Tests;
 
 public class EcommerceProductCatalogTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
     public void FromResultSets_MapsThreeSets_PreservesSqlColumnNames()

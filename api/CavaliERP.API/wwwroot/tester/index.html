@@ -273,7 +273,18 @@
         const res = await post("api/product-catalog");
         let parsed = null;
         try { parsed = JSON.parse(res.text); } catch {}
-        log("PRODUCT CATALOG HTTP " + res.status, res.pretty);
+        const skus = parsed && Array.isArray(parsed.skus) ? parsed.skus : [];
+        const styleModels = parsed && Array.isArray(parsed.styleModels) ? parsed.styleModels : [];
+        const models = parsed && Array.isArray(parsed.models) ? parsed.models : [];
+        const sampleSku = skus.find((sku) => sku && sku["SKU CODE"]);
+        const summary = [
+          "HTTP status: " + res.status,
+          "skus: " + skus.length,
+          "styleModels: " + styleModels.length,
+          "models: " + models.length,
+        ];
+        if (sampleSku) summary.push("sample SKU CODE: " + sampleSku["SKU CODE"]);
+        log("PRODUCT CATALOG HTTP " + res.status, summary.join("\n"));
         if (res.status >= 200 && res.status < 300 && parsed && Array.isArray(parsed.skus)) {
           const sample = parsed.skus[0] ? (parsed.skus[0]["SKU CODE"] || parsed.skus[0]["STYLE NAME"] || "") : "";
           catalogStatusEl.innerHTML = '<span class="ok">' + parsed.skus.length + " SKU" + (sample ? " · " + sample : "") + "</span>";

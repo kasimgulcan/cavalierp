@@ -38,6 +38,7 @@ Stok GET ile aynı secret ve header'lar:
 ```
 
 - `skus` = `GetSKU` satırları (87 kolon; anahtar = SQL kolon adı, `SKU CODE` eşleme anahtarı)
+- Her `skus` satırında aynı değeri taşıyan `BARCODE GS1/EAN` ve sonunda boşluk bulunan `BARCODE GS1/EAN ` anahtarları birlikte yer alır; anahtarları trim etmek çakışmaya yol açar.
 - `styleModels` / `models` = `GetSKU_ModelReference` kümeleri
 - Filtre ve sayfalama yok
 - Boş liste: 200, diziler `[]`
