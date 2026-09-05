@@ -1,6 +1,6 @@
 # CavaliERP — E-ticaret stok senkronu (v2)
 
-Karşı tarafa verilecek sözleşme. Stok hareketi; ürün katalog create/update yok.
+Karşı tarafa verilecek sözleşme. Stok hareketi. Ürün kataloğu ayrı kapı: `docs/ecommerce-product-catalog.md`.
 
 İki kapı:
 
