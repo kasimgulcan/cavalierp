@@ -25,6 +25,20 @@ public class EcommerceShopSimulatorTests
     }
 
     [Fact]
+    public async Task GetProductCatalog_SendsSignedGet()
+    {
+        var handler = new CaptureHandler("""{"generatedAt":"2026-09-05T00:00:00Z","source":"cavalierp","skus":[],"styleModels":[],"models":[]}""");
+        var simulator = Create(handler);
+
+        var result = await simulator.GetProductCatalogAsync(BaseUrl);
+
+        Assert.Equal(200, result.StatusCode);
+        Assert.Equal(HttpMethod.Get, handler.Method);
+        Assert.Equal("http://localhost:5160/integrations/ecommerce/products/snapshot", handler.Url);
+        AssertSigned(handler, EcommerceHmac.CanonicalGet(handler.Timestamp, "/integrations/ecommerce/products/snapshot"));
+    }
+
+    [Fact]
     public async Task Apply_SendsSignedSalePost()
     {
         var handler = new CaptureHandler("""{"success":true}""");

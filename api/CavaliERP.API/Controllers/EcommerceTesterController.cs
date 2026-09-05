@@ -41,6 +41,16 @@ public sealed class EcommerceTesterController(
         return Proxy(result);
     }
 
+    [HttpPost("api/product-catalog")]
+    public async Task<IActionResult> ProductCatalog(CancellationToken ct)
+    {
+        if (Closed())
+            return NotFound(new { success = false, error = "Not found." });
+
+        var result = await shop.GetProductCatalogAsync(ApiBase(), ct);
+        return Proxy(result);
+    }
+
     [HttpPost("api/apply")]
     public async Task<IActionResult> Apply([FromBody] TesterApplyRequest request, CancellationToken ct)
     {

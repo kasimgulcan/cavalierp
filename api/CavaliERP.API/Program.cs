@@ -81,7 +81,7 @@ builder.Services.AddHostedService<EcommerceOutboundWorker>();
 builder.Services.AddSingleton<EcommerceTesterInbox>();
 builder.Services.AddHttpClient<EcommerceShopSimulator>(client =>
 {
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromSeconds(120);
 });
 builder.Services.AddHttpClient(EcommerceOutboundDispatcher.HttpClientName, client =>
 {

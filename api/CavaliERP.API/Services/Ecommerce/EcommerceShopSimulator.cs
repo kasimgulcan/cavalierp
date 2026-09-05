@@ -17,9 +17,13 @@ public sealed class EcommerceShopSimulator(
     public const string HttpClientName = "EcommerceShopSimulator";
     public const string StockPath = "/integrations/ecommerce/stock";
     public const string SnapshotPath = "/integrations/ecommerce/stock/snapshot";
+    public const string ProductCatalogPath = "/integrations/ecommerce/products/snapshot";
 
     public Task<ShopCallResult> GetSnapshotAsync(string apiBaseUrl, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Get, Combine(apiBaseUrl, SnapshotPath), body: null, canonicalPath: SnapshotPath, ct);
+
+    public Task<ShopCallResult> GetProductCatalogAsync(string apiBaseUrl, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Get, Combine(apiBaseUrl, ProductCatalogPath), body: null, canonicalPath: ProductCatalogPath, ct);
 
     public Task<ShopCallResult> ApplyAsync(
         string apiBaseUrl,
