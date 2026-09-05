@@ -74,6 +74,7 @@ builder.Services.AddSingleton<ExecSpService>();
 builder.Services.Configure<EcommerceSyncOptions>(
     builder.Configuration.GetSection(EcommerceSyncOptions.SectionName));
 builder.Services.AddSingleton<IEcommerceStockRepository, EcommerceStockRepository>();
+builder.Services.AddSingleton<IEcommerceProductCatalogRepository, EcommerceProductCatalogRepository>();
 builder.Services.AddSingleton<EcommerceStockService>();
 builder.Services.AddSingleton<EcommerceOutboundDispatcher>();
 builder.Services.AddHostedService<EcommerceOutboundWorker>();
