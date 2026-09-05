@@ -26,6 +26,10 @@ public sealed class EcommerceProductCatalogController(
                 models = snapshot.Models,
             });
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unable to load product catalog.");

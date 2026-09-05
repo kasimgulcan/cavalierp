@@ -7,6 +7,9 @@ public interface IEcommerceProductCatalogRepository
 
 public sealed class EcommerceProductCatalogRepository(IConfiguration configuration) : IEcommerceProductCatalogRepository
 {
-    public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(CancellationToken cancellationToken) =>
+    public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
+    {
+        _ = configuration;
         throw new NotImplementedException();
+    }
 }
