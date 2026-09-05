@@ -12,6 +12,20 @@ public class SkuCodeMapperTests
     }
 
     [Fact]
+    public void FromProduct_KeepsInternalSpacesAndSlashesInSize()
+    {
+        Assert.Equal(
+            "R.TOPKG_CPL0153_TJR0016CELCEL_6-7 Y",
+            SkuCodeMapper.FromProduct("R.TOPKG_CPL0153_TJR0016CELCEL", "6-7 Y"));
+        Assert.Equal(
+            "R.BOTMN_BRC0110_TJR0037WHTWHT_M / 46",
+            SkuCodeMapper.FromProduct("R.BOTMN_BRC0110_TJR0037WHTWHT", "M / 46"));
+        Assert.Equal(
+            "H.RUGFL_FLC0001_FLC0001GRNNAV_S / COB",
+            SkuCodeMapper.FromProduct("H.RUGFL_FLC0001_FLC0001GRNNAV", "S / COB"));
+    }
+
+    [Fact]
     public void TryNormalize_TrimsAndAcceptsValidCode()
     {
         var ok = SkuCodeMapper.TryNormalize("  H.RUGFL_FLC0001_FLC0001GRNNAV_XL  ", out var normalized, out var error);

@@ -59,19 +59,24 @@ public sealed class EcommerceOutboundDispatcher(
             using var message = new HttpRequestMessage(HttpMethod.Post, opts.SubscriberUrl);
             message.Headers.TryAddWithoutValidation(EcommerceHmac.TimestampHeader, timestamp);
             message.Headers.TryAddWithoutValidation(EcommerceHmac.SignatureHeader, signature);
+            if (!string.IsNullOrWhiteSpace(opts.SubscriberBearerToken))
+                message.Headers.TryAddWithoutValidation("Authorization", "Bearer " + opts.SubscriberBearerToken.Trim());
             message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             message.Content = new StringContent(body, Encoding.UTF8, "application/json");
 
             using var response = await http.SendAsync(message, cancellationToken);
-            if ((int)response.StatusCode is >= 200 and < 300)
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var status = (int)response.StatusCode;
+            if (status is >= 200 and < 300)
             {
-                await repository.MarkOutboundSentAsync(row.OutboundId, cancellationToken);
+                await repository.MarkOutboundSentAsync(
+                    row.OutboundId, opts.SubscriberUrl, body, status, responseBody, cancellationToken);
                 return;
             }
 
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             var error = EcommerceOutboundError.FormatHttp(response.StatusCode, responseBody);
-            await repository.MarkOutboundAttemptAsync(row.OutboundId, error, row.Attempts + 1 >= 3, cancellationToken);
+            await repository.MarkOutboundAttemptAsync(
+                row.OutboundId, error, row.Attempts + 1 >= 3, opts.SubscriberUrl, body, status, responseBody, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -80,6 +85,10 @@ public sealed class EcommerceOutboundDispatcher(
                 row.OutboundId,
                 EcommerceOutboundError.FormatException(ex),
                 row.Attempts + 1 >= 3,
+                opts.SubscriberUrl,
+                body,
+                httpStatus: null,
+                responseJson: ex.Message,
                 cancellationToken);
         }
     }

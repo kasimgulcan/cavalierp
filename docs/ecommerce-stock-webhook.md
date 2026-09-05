@@ -62,6 +62,8 @@ Canonical:
   "Enabled": true,
   "SharedSecret": "...en az 32 karakter...",
   "SubscriberUrl": "https://reklam5.example/stock-events",
+  "SubscriberBearerToken": "...sunucuda, git yok...",
+  "PartnerSnapshotUrl": "https://staging.example/en/data/plugin/get.ciqra?pluginName=cavalierp-stock-snapshot",
   "TimestampSkewMinutes": 5,
   "AllowedCidrs": []
 }
@@ -129,6 +131,16 @@ Canonical:
 
 Siteden gelen hareketler (`Note = ecommerce`) push edilmez.
 
+reklam5 katmanı HMAC yanında `Authorization: Bearer` ister (`EcommerceSync:SubscriberBearerToken`).
+
+## Partner snapshot (CavaliERP okur, yazmaz)
+
+Mutabakat. Canonical: `{timestamp}.GET.{path}` — path query’siz (ör. `/en/data/plugin/get.ciqra`). İmza query string’de (`X-CavaliERP-Timestamp`, `X-CavaliERP-Signature`, URL-encode). Gövde JSON string içinde JSON olabilir; iki kez parse edilir.
+
+Tester: `POST /tester/api/partner-snapshot`.
+
+`skuCode` = `ProductCode` + `_` + `Size`. `Size` iç boşluk ve `/` korur (`6-7 Y`, `M / 46`).
+
 ## SQL
 
 SSMS, `CavaliERP` veritabanı:
@@ -143,7 +155,10 @@ SSMS, `CavaliERP` veritabanı:
 
 - Controller: `api/CavaliERP.API/Controllers/EcommerceStockController.cs`
 - Worker: `EcommerceOutboundDispatcher` / `EcommerceOutboundWorker`
+- Partner snapshot: `EcommercePartnerSnapshotClient`
 - HMAC: `EcommerceHmac.cs`
+
+HTTP gövdeleri `StockWebhookInbound` / `StockWebhookOutbound` (`RequestJson`, `ResponseJson`). Migrate: `sql/Migrate_EcommerceWebhookHttpLog.sql`.
 
 ## Test istemcisi
 

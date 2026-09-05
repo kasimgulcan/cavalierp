@@ -63,6 +63,9 @@ Edit `appsettings.json` on the server (publish klasöründeki dosya — **localh
 - `ConnectionStrings:Default` — SQL Server adı, veritabanı, SQL kullanıcı/şifre (app pool `Trusted_Connection` ile SQL'e bağlanamaz)
 - `Jwt:SigningKey` — strong secret (min 32 chars)
 - `Membership:RequireApproval` — `false` for store review, `true` for production
+- `EcommerceSync:SubscriberUrl` — reklam5 webhook HTTPS
+- `EcommerceSync:SubscriberBearerToken` — reklam5 Bearer (git’e yazılmaz)
+- `EcommerceSync:PartnerSnapshotUrl` — reklam5 snapshot GET (query’siz path imzalanır)
 
 ## Verify
 

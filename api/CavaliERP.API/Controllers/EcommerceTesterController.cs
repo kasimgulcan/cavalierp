@@ -12,6 +12,9 @@ namespace CsmStok.Api.Controllers;
 public sealed class EcommerceTesterController(
     EcommerceShopSimulator shop,
     EcommerceTesterInbox inbox,
+    EcommerceStockService stockService,
+    EcommercePartnerSnapshotClient partnerSnapshot,
+    IEcommerceStockRepository repository,
     IOptions<EcommerceSyncOptions> options) : ControllerBase
 {
     [HttpGet("api/info")]
@@ -28,6 +31,7 @@ public sealed class EcommerceTesterController(
             testerEnabled = opts.TesterEnabled,
             subscriberUrl = $"{origin}/tester/stock-events/",
             configuredSubscriberUrl = opts.SubscriberUrl,
+            partnerSnapshotUrl = string.IsNullOrWhiteSpace(opts.PartnerSnapshotUrl) ? null : opts.PartnerSnapshotUrl,
         });
     }
 
@@ -49,6 +53,37 @@ public sealed class EcommerceTesterController(
 
         var result = await shop.GetProductCatalogAsync(ApiBase(), ct);
         return Proxy(result);
+    }
+
+    [HttpPost("api/partner-snapshot")]
+    public async Task<IActionResult> PartnerSnapshot(CancellationToken ct)
+    {
+        if (Closed())
+            return NotFound(new { success = false, error = "Not found." });
+
+        if (string.IsNullOrWhiteSpace(options.Value.PartnerSnapshotUrl))
+            return BadRequest(new { success = false, error = "PartnerSnapshotUrl is not configured." });
+
+        try
+        {
+            var theirs = await partnerSnapshot.FetchAsync(ct);
+            var ours = await stockService.GetSnapshotAsync(ct);
+            var diffs = EcommerceSnapshotDiff.Compare(ours, theirs.Items);
+            return Ok(new
+            {
+                success = true,
+                generatedAt = theirs.GeneratedAt,
+                source = theirs.Source,
+                itemCount = theirs.Items.Count,
+                items = theirs.Items,
+                diffCount = diffs.Count,
+                diffs,
+            });
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway, new { success = false, error = ex.Message });
+        }
     }
 
     [HttpPost("api/apply")]
@@ -90,6 +125,17 @@ public sealed class EcommerceTesterController(
             return NotFound(new { success = false, error = "Not found." });
 
         return Ok(new { items = inbox.List() });
+    }
+
+    [HttpGet("api/webhook-logs")]
+    public async Task<IActionResult> WebhookLogs(CancellationToken ct)
+    {
+        if (Closed())
+            return NotFound(new { success = false, error = "Not found." });
+
+        var inbound = await repository.ListInboundHttpAsync(50, ct);
+        var outbound = await repository.ListOutboundHttpAsync(50, ct);
+        return Ok(new { inbound, outbound });
     }
 
     [HttpPost("stock-events")]

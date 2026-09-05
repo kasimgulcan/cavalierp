@@ -9,6 +9,7 @@ public sealed class EcommerceHmacMiddleware(
     ILogger<EcommerceHmacMiddleware> logger)
 {
     public const int MaxBodyBytes = 64 * 1024;
+    public const string RawBodyItemsKey = "EcommerceRawBody";
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -70,6 +71,7 @@ public sealed class EcommerceHmacMiddleware(
             }
 
             context.Request.Body.Position = 0;
+            context.Items[RawBodyItemsKey] = body;
             canonical = EcommerceHmac.CanonicalPost(timestampHeader, body);
         }
         else

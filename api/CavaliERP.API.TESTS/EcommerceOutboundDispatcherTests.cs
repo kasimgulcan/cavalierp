@@ -60,6 +60,59 @@ public class EcommerceOutboundDispatcherTests
         Assert.Contains("matched multiple endpoints", repo.Errors[0]);
     }
 
+    [Fact]
+    public async Task ProcessOnce_SendsBearerAuthorization_WhenTokenConfigured()
+    {
+        var repo = new FakeOutboundRepo { Rows = [SampleRow()] };
+        var handler = new CaptureHandler();
+        var dispatcher = Create(
+            repo,
+            subscriberUrl: "https://staging.cavaliersanmarco.it/webhook/cavalierp-stock",
+            bearerToken: "staging-token",
+            handler: handler);
+
+        await dispatcher.ProcessOnceAsync(CancellationToken.None);
+
+        Assert.Equal("Bearer staging-token", handler.Authorization);
+        Assert.False(string.IsNullOrWhiteSpace(handler.Timestamp));
+        Assert.False(string.IsNullOrWhiteSpace(handler.Signature));
+    }
+
+    [Fact]
+    public async Task ProcessOnce_StoresRequestAndResponseJson_OnSuccess()
+    {
+        var repo = new FakeOutboundRepo { Rows = [SampleRow()] };
+        var dispatcher = Create(
+            repo,
+            subscriberUrl: "https://staging.cavaliersanmarco.it/webhook/cavalierp-stock",
+            status: HttpStatusCode.OK,
+            responseBody: """{"ok":true}""");
+
+        await dispatcher.ProcessOnceAsync(CancellationToken.None);
+
+        var log = Assert.Single(repo.HttpLogs);
+        Assert.Equal(1, log.Id);
+        Assert.Equal(200, log.HttpStatus);
+        Assert.Equal("""{"ok":true}""", log.ResponseJson);
+        Assert.Contains("\"eventType\":\"sale.created\"", log.RequestJson);
+        Assert.Equal("https://staging.cavaliersanmarco.it/webhook/cavalierp-stock", log.RequestUrl);
+    }
+
+    [Fact]
+    public async Task ProcessOnce_OmitsBearerAuthorization_WhenTokenMissing()
+    {
+        var repo = new FakeOutboundRepo { Rows = [SampleRow()] };
+        var handler = new CaptureHandler();
+        var dispatcher = Create(
+            repo,
+            subscriberUrl: "https://staging.cavaliersanmarco.it/webhook/cavalierp-stock",
+            handler: handler);
+
+        await dispatcher.ProcessOnceAsync(CancellationToken.None);
+
+        Assert.True(string.IsNullOrEmpty(handler.Authorization));
+    }
+
     private static EcommerceOutboundRow SampleRow() => new()
     {
         OutboundId = 1,
@@ -77,9 +130,11 @@ public class EcommerceOutboundDispatcherTests
         FakeOutboundRepo repo,
         string subscriberUrl,
         HttpStatusCode status = HttpStatusCode.OK,
-        string responseBody = "{}")
+        string responseBody = "{}",
+        string bearerToken = "",
+        HttpMessageHandler? handler = null)
     {
-        var factory = new StubFactory(status, responseBody);
+        var factory = new StubFactory(handler ?? new StubHandler(status, responseBody));
         return new EcommerceOutboundDispatcher(
             repo,
             factory,
@@ -88,14 +143,15 @@ public class EcommerceOutboundDispatcherTests
                 Enabled = true,
                 SharedSecret = Secret,
                 SubscriberUrl = subscriberUrl,
+                SubscriberBearerToken = bearerToken,
             }),
             NullLogger<EcommerceOutboundDispatcher>.Instance);
     }
 
-    private sealed class StubFactory(HttpStatusCode status, string responseBody) : IHttpClientFactory
+    private sealed class StubFactory(HttpMessageHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) =>
-            new(new StubHandler(status, responseBody)) { Timeout = TimeSpan.FromSeconds(10) };
+            new(handler) { Timeout = TimeSpan.FromSeconds(10) };
     }
 
     private sealed class StubHandler(HttpStatusCode status, string responseBody) : HttpMessageHandler
@@ -105,6 +161,24 @@ public class EcommerceOutboundDispatcherTests
             {
                 Content = new StringContent(responseBody, Encoding.UTF8, "text/html"),
             });
+    }
+
+    private sealed class CaptureHandler : HttpMessageHandler
+    {
+        public string? Authorization { get; private set; }
+        public string Timestamp { get; private set; } = "";
+        public string Signature { get; private set; } = "";
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Authorization = request.Headers.TryGetValues("Authorization", out var auth) ? auth.First() : null;
+            Timestamp = request.Headers.TryGetValues(EcommerceHmac.TimestampHeader, out var ts) ? ts.First() : "";
+            Signature = request.Headers.TryGetValues(EcommerceHmac.SignatureHeader, out var sig) ? sig.First() : "";
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json"),
+            });
+        }
     }
 
     private sealed class FakeOutboundRepo : IEcommerceStockRepository
@@ -128,18 +202,64 @@ public class EcommerceOutboundDispatcherTests
             return Task.FromResult<IReadOnlyList<EcommerceOutboundRow>>(Rows);
         }
 
-        public Task MarkOutboundSentAsync(long outboundId, CancellationToken cancellationToken)
+        public List<EcommerceWebhookHttpLog> HttpLogs { get; } = [];
+
+        public Task MarkOutboundSentAsync(
+            long outboundId,
+            string? requestUrl,
+            string? requestJson,
+            int httpStatus,
+            string? responseJson,
+            CancellationToken cancellationToken)
         {
             SentIds.Add(outboundId);
+            HttpLogs.Add(new EcommerceWebhookHttpLog
+            {
+                Id = outboundId,
+                Direction = "outbound",
+                RequestUrl = requestUrl,
+                RequestJson = requestJson,
+                HttpStatus = httpStatus,
+                ResponseJson = responseJson,
+                At = DateTimeOffset.UtcNow,
+            });
             return Task.CompletedTask;
         }
 
-        public Task MarkOutboundAttemptAsync(long outboundId, string error, bool failed, CancellationToken cancellationToken)
+        public Task MarkOutboundAttemptAsync(
+            long outboundId,
+            string error,
+            bool failed,
+            string? requestUrl,
+            string? requestJson,
+            int? httpStatus,
+            string? responseJson,
+            CancellationToken cancellationToken)
         {
             Errors.Add(error);
+            HttpLogs.Add(new EcommerceWebhookHttpLog
+            {
+                Id = outboundId,
+                Direction = "outbound",
+                RequestUrl = requestUrl,
+                RequestJson = requestJson,
+                HttpStatus = httpStatus,
+                ResponseJson = responseJson,
+                At = DateTimeOffset.UtcNow,
+            });
             if (failed)
                 FailedIds.Add(outboundId);
             return Task.CompletedTask;
         }
+
+        public Task SaveInboundHttpAsync(
+            Guid eventId, string? requestJson, int httpStatus, string? responseJson, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<IReadOnlyList<EcommerceWebhookHttpLog>> ListInboundHttpAsync(int take, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<EcommerceWebhookHttpLog>>([]);
+
+        public Task<IReadOnlyList<EcommerceWebhookHttpLog>> ListOutboundHttpAsync(int take, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<EcommerceWebhookHttpLog>>([]);
     }
 }

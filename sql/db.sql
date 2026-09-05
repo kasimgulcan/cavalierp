@@ -1128,6 +1128,9 @@ CREATE TABLE [dbo].[StockWebhookInbound](
 	[EventType] [nvarchar](40) NOT NULL,
 	[OnHand] [int] NULL,
 	[InboundId] [bigint] IDENTITY(1,1) NOT NULL,
+	[RequestJson] [nvarchar](max) NULL,
+	[ResponseJson] [nvarchar](max) NULL,
+	[HttpStatus] [int] NULL,
  CONSTRAINT [PK_StockWebhookInbound] PRIMARY KEY CLUSTERED 
 (
 	[InboundId] ASC
@@ -1156,6 +1159,10 @@ CREATE TABLE [dbo].[StockWebhookOutbound](
 	[Attempts] [int] NOT NULL,
 	[LastError] [nvarchar](4000) NULL,
 	[SentAt] [datetimeoffset](7) NULL,
+	[RequestJson] [nvarchar](max) NULL,
+	[ResponseJson] [nvarchar](max) NULL,
+	[HttpStatus] [int] NULL,
+	[RequestUrl] [nvarchar](500) NULL,
  CONSTRAINT [PK_StockWebhookOutbound] PRIMARY KEY CLUSTERED 
 (
 	[OutboundId] ASC
@@ -2786,14 +2793,22 @@ GO
 CREATE   PROCEDURE [dbo].[API_WebHook_OutboundMarkAttempt]
     @OutboundId BIGINT,
     @Error NVARCHAR(4000),
-    @Failed BIT
+    @Failed BIT,
+    @RequestUrl NVARCHAR(500) = NULL,
+    @RequestJson NVARCHAR(MAX) = NULL,
+    @HttpStatus INT = NULL,
+    @ResponseJson NVARCHAR(MAX) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     UPDATE dbo.StockWebhookOutbound
     SET Attempts = Attempts + 1,
         LastError = @Error,
-        Status = CASE WHEN @Failed = 1 THEN N'Failed' ELSE Status END
+        Status = CASE WHEN @Failed = 1 THEN N'Failed' ELSE Status END,
+        RequestUrl = COALESCE(@RequestUrl, RequestUrl),
+        RequestJson = COALESCE(@RequestJson, RequestJson),
+        HttpStatus = COALESCE(@HttpStatus, HttpStatus),
+        ResponseJson = COALESCE(@ResponseJson, ResponseJson)
     WHERE OutboundId = @OutboundId;
 END
 
@@ -2805,14 +2820,22 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 CREATE   PROCEDURE [dbo].[API_WebHook_OutboundMarkSent]
-    @OutboundId BIGINT
+    @OutboundId BIGINT,
+    @RequestUrl NVARCHAR(500) = NULL,
+    @RequestJson NVARCHAR(MAX) = NULL,
+    @HttpStatus INT = NULL,
+    @ResponseJson NVARCHAR(MAX) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     UPDATE dbo.StockWebhookOutbound
     SET Status = N'Sent',
         SentAt = SYSUTCDATETIME(),
-        LastError = NULL
+        LastError = NULL,
+        RequestUrl = COALESCE(@RequestUrl, RequestUrl),
+        RequestJson = COALESCE(@RequestJson, RequestJson),
+        HttpStatus = COALESCE(@HttpStatus, HttpStatus),
+        ResponseJson = COALESCE(@ResponseJson, ResponseJson)
     WHERE OutboundId = @OutboundId;
 END
 GO

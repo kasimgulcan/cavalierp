@@ -102,6 +102,42 @@ public class EcommerceHmacMiddlewareTests
     }
 
     [Fact]
+    public async Task ValidPostSignature_StoresRawBodyInHttpContext()
+    {
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        var body = """{"eventId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","item":{"skuCode":"ABC_XL","quantity":1}}""";
+        var canonical = EcommerceHmac.CanonicalPost(timestamp, body);
+        var signature = EcommerceHmac.FormatSignatureHeader(EcommerceHmac.ComputeSignature(Secret, canonical));
+        object? stored = null;
+
+        RequestDelegate next = ctx =>
+        {
+            stored = ctx.Items[EcommerceHmacMiddleware.RawBodyItemsKey];
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            return Task.CompletedTask;
+        };
+
+        var middleware = new EcommerceHmacMiddleware(
+            next,
+            Options.Create(EnabledOptions()),
+            NullLogger<EcommerceHmacMiddleware>.Instance);
+
+        var context = new DefaultHttpContext();
+        context.Request.Method = "POST";
+        context.Request.Path = "/integrations/ecommerce/stock";
+        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
+        context.Request.ContentLength = Encoding.UTF8.GetByteCount(body);
+        context.Response.Body = new MemoryStream();
+        context.Connection.RemoteIpAddress = IPAddress.Loopback;
+        context.Request.Headers[EcommerceHmac.TimestampHeader] = timestamp;
+        context.Request.Headers[EcommerceHmac.SignatureHeader] = signature;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(body, stored);
+    }
+
+    [Fact]
     public async Task ValidGetSignature_CallsNext()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();

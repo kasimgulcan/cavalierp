@@ -27,6 +27,29 @@ public class EcommerceHmacTests
     }
 
     [Fact]
+    public void CanonicalGet_IgnoresQueryStringOnPartnerSnapshotPath()
+    {
+        var path = new Uri("https://staging.cavaliersanmarco.it/en/data/plugin/get.ciqra?pluginName=cavalierp-stock-snapshot")
+            .AbsolutePath;
+        var canonical = EcommerceHmac.CanonicalGet("1700000000", path);
+        Assert.Equal("1700000000.GET./en/data/plugin/get.ciqra", canonical);
+    }
+
+    [Fact]
+    public void AppendAuthQuery_KeepsExistingParamsAndUrlEncodesSignature()
+    {
+        var uri = new Uri("https://staging.cavaliersanmarco.it/en/data/plugin/get.ciqra?pluginName=cavalierp-stock-snapshot");
+        var signed = EcommerceHmac.AppendAuthQuery(uri, "1700000000", "sha256=abcd");
+
+        Assert.Equal("/en/data/plugin/get.ciqra", signed.AbsolutePath);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(signed.Query);
+        Assert.Equal("cavalierp-stock-snapshot", query["pluginName"].ToString());
+        Assert.Equal("1700000000", query[EcommerceHmac.TimestampHeader].ToString());
+        Assert.Equal("sha256=abcd", query[EcommerceHmac.SignatureHeader].ToString());
+        Assert.Contains("sha256%3Dabcd", signed.Query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void SignaturesEqual_AcceptsMatchingHmac()
     {
         var canonical = EcommerceHmac.CanonicalPost("1700000000", "{}");

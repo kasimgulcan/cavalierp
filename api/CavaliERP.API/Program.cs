@@ -87,6 +87,10 @@ builder.Services.AddHttpClient(EcommerceOutboundDispatcher.HttpClientName, clien
 {
     client.Timeout = TimeSpan.FromSeconds(10);
 });
+builder.Services.AddHttpClient<EcommercePartnerSnapshotClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
 var app = builder.Build();
 

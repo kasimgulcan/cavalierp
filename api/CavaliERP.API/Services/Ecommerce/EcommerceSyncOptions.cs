@@ -12,6 +12,10 @@ public sealed class EcommerceSyncOptions
 
     public string SubscriberUrl { get; set; } = string.Empty;
 
+    public string SubscriberBearerToken { get; set; } = string.Empty;
+
+    public string PartnerSnapshotUrl { get; set; } = string.Empty;
+
     public int? ActorUserId { get; set; } = 7;
 
     public int TimestampSkewMinutes { get; set; } = 5;

@@ -18,6 +18,19 @@ public static class EcommerceHmac
         return $"{timestamp}.GET.{normalized}";
     }
 
+    public static Uri AppendAuthQuery(Uri uri, string timestamp, string signature)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        var builder = new UriBuilder(uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(builder.Query)
+            .ToDictionary(pair => pair.Key, pair => pair.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+        query[TimestampHeader] = timestamp;
+        query[SignatureHeader] = signature;
+        builder.Query = string.Join("&", query.Select(pair =>
+            $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"));
+        return builder.Uri;
+    }
+
     public static string NormalizePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
