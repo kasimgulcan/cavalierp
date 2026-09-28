@@ -39,6 +39,22 @@ public class EcommerceShopSimulatorTests
     }
 
     [Fact]
+    public async Task GetProductCatalog_WithSince_AppendsQueryAndKeepsCanonicalPath()
+    {
+        var handler = new CaptureHandler("""{"generatedAt":"2026-09-05T00:00:00Z","source":"cavalierp","skus":[],"styleModels":[],"models":[]}""");
+        var simulator = Create(handler);
+        var since = DateTimeOffset.Parse("2026-09-07T17:00:00Z");
+
+        var result = await simulator.GetProductCatalogAsync(BaseUrl, since);
+
+        Assert.Equal(200, result.StatusCode);
+        Assert.Contains("since=", handler.Url, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("2026-09-07", handler.Url);
+        Assert.DoesNotContain("since", EcommerceHmac.CanonicalGet(handler.Timestamp, "/integrations/ecommerce/products/snapshot"));
+        AssertSigned(handler, EcommerceHmac.CanonicalGet(handler.Timestamp, "/integrations/ecommerce/products/snapshot"));
+    }
+
+    [Fact]
     public async Task Apply_SendsSignedSalePost()
     {
         var handler = new CaptureHandler("""{"success":true}""");

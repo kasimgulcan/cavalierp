@@ -98,7 +98,7 @@ public class EcommerceProductCatalogTests
             repo,
             NullLogger<EcommerceProductCatalogController>.Instance);
 
-        var result = await controller.Snapshot(CancellationToken.None);
+        var result = await controller.Snapshot(since: null, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(StatusCodes.Status200OK, ok.StatusCode ?? 200);
@@ -121,7 +121,7 @@ public class EcommerceProductCatalogTests
             repo,
             NullLogger<EcommerceProductCatalogController>.Instance);
 
-        var result = await controller.Snapshot(CancellationToken.None);
+        var result = await controller.Snapshot(since: null, CancellationToken.None);
 
         var obj = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status500InternalServerError, obj.StatusCode);
@@ -130,15 +130,64 @@ public class EcommerceProductCatalogTests
         Assert.DoesNotContain("GetSKUSnapshot must return 3 result sets.", json);
     }
 
+    [Fact]
+    public async Task Snapshot_WhenSinceOmitted_PassesNullToRepository()
+    {
+        var repo = new RecordingCatalogRepository();
+        var controller = new EcommerceProductCatalogController(
+            repo,
+            NullLogger<EcommerceProductCatalogController>.Instance);
+
+        await controller.Snapshot(since: null, CancellationToken.None);
+
+        Assert.Null(repo.LastSince);
+    }
+
+    [Fact]
+    public async Task Snapshot_WhenSinceProvided_PassesDateToRepository()
+    {
+        var since = DateTimeOffset.Parse("2026-09-07T17:00:00Z");
+        var repo = new RecordingCatalogRepository();
+        var controller = new EcommerceProductCatalogController(
+            repo,
+            NullLogger<EcommerceProductCatalogController>.Instance);
+
+        await controller.Snapshot(since, CancellationToken.None);
+
+        Assert.Equal(since, repo.LastSince);
+    }
+
     private sealed class StubCatalogRepository(EcommerceProductCatalogSnapshot snapshot) : IEcommerceProductCatalogRepository
     {
-        public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(CancellationToken cancellationToken) =>
+        public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(
+            DateTimeOffset? since,
+            CancellationToken cancellationToken) =>
             Task.FromResult(snapshot);
     }
 
     private sealed class ThrowingCatalogRepository(Exception exception) : IEcommerceProductCatalogRepository
     {
-        public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(CancellationToken cancellationToken) =>
+        public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(
+            DateTimeOffset? since,
+            CancellationToken cancellationToken) =>
             Task.FromException<EcommerceProductCatalogSnapshot>(exception);
+    }
+
+    private sealed class RecordingCatalogRepository : IEcommerceProductCatalogRepository
+    {
+        public DateTimeOffset? LastSince { get; private set; }
+
+        public Task<EcommerceProductCatalogSnapshot> GetSnapshotAsync(
+            DateTimeOffset? since,
+            CancellationToken cancellationToken)
+        {
+            LastSince = since;
+            return Task.FromResult(EcommerceProductCatalogMapper.FromResultSets(
+            [
+                new List<IReadOnlyDictionary<string, object?>>(),
+                new List<IReadOnlyDictionary<string, object?>>(),
+                new List<IReadOnlyDictionary<string, object?>>(),
+            ]));
+        }
     }
 }

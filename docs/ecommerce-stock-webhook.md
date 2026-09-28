@@ -61,9 +61,9 @@ Canonical:
 "EcommerceSync": {
   "Enabled": true,
   "SharedSecret": "...en az 32 karakter...",
-  "SubscriberUrl": "https://reklam5.example/stock-events",
+  "SubscriberUrl": "https://www.cavaliersanmarco.it/webhook/cavalierp-stock",
   "SubscriberBearerToken": "...sunucuda, git yok...",
-  "PartnerSnapshotUrl": "https://staging.example/en/data/plugin/get.ciqra?pluginName=cavalierp-stock-snapshot",
+  "PartnerSnapshotUrl": "https://www.cavaliersanmarco.it/en/data/plugin/get.ciqra?pluginName=cavalierp-stock-snapshot",
   "TimestampSkewMinutes": 5,
   "AllowedCidrs": []
 }

@@ -35,6 +35,10 @@ artifacts/
 .env.*
 !.env.example
 
+# Sideload APKs and crash-deobfuscation maps (built locally)
+/releases/
+api/CavaliERP.API/wwwroot/app/*.apk
+
 # Flutter / Dart (mobile/)
 mobile/.dart_tool/
 mobile/.flutter-plugins

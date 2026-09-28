@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import '../auth/auth_provider.dart';
 import '../auth/user_profile_provider.dart';
 import 'cart_provider.dart';
+import 'checkout_draft.dart';
 import 'currency_display.dart';
 import 'currency_provider.dart';
 import 'currency_selection.dart';
 import 'pending_order_checkout_provider.dart';
+import 'sale_session.dart';
 import 'widgets/cart_line_tile.dart';
 import 'widgets/cart_summary_bar.dart';
 
@@ -20,13 +22,23 @@ class CartScreen extends ConsumerWidget {
     final currencyId = effectiveCurrencyId(ref.watch(selectedCurrencyIdProvider));
     final total = ref.read(cartProvider.notifier).totalFor(currencyId);
     final isStaff = ref.watch(isStaffProvider);
+    final editingId = ref.watch(editingSaleIdProvider);
     final currency = ref.watch(selectedCurrencyProvider);
     final symbol = currencySymbolFrom(currency);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sepet')),
+      appBar: AppBar(
+        title: Text(editingId == null ? 'Sepet' : 'Satış #$editingId'),
+        actions: [
+          if (editingId != null)
+            TextButton(
+              onPressed: () => confirmAndStartNewSale(context, ref, editingId),
+              child: const Text('Yeni satış'),
+            ),
+        ],
+      ),
       body: lines.isEmpty
           ? Center(
               child: Padding(

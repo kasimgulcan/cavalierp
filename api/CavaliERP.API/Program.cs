@@ -101,6 +101,12 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.Use(async (context, next) =>
 {
+    if (context.Request.Path == "/app")
+    {
+        context.Response.Redirect($"{context.Request.PathBase}/app/");
+        return;
+    }
+
     if (context.Request.Path.StartsWithSegments("/tester"))
     {
         var testerOptions = context.RequestServices

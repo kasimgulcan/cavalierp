@@ -12,11 +12,11 @@ public sealed class EcommerceProductCatalogController(
     ILogger<EcommerceProductCatalogController> logger) : ControllerBase
 {
     [HttpGet("snapshot")]
-    public async Task<IActionResult> Snapshot(CancellationToken ct)
+    public async Task<IActionResult> Snapshot([FromQuery] DateTimeOffset? since, CancellationToken ct)
     {
         try
         {
-            var snapshot = await repository.GetSnapshotAsync(ct);
+            var snapshot = await repository.GetSnapshotAsync(since, ct);
             return Ok(new
             {
                 generatedAt = DateTimeOffset.UtcNow,

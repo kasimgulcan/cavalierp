@@ -63,9 +63,9 @@ Edit `appsettings.json` on the server (publish klasöründeki dosya — **localh
 - `ConnectionStrings:Default` — SQL Server adı, veritabanı, SQL kullanıcı/şifre (app pool `Trusted_Connection` ile SQL'e bağlanamaz)
 - `Jwt:SigningKey` — strong secret (min 32 chars)
 - `Membership:RequireApproval` — `false` for store review, `true` for production
-- `EcommerceSync:SubscriberUrl` — reklam5 webhook HTTPS
-- `EcommerceSync:SubscriberBearerToken` — reklam5 Bearer (git’e yazılmaz)
-- `EcommerceSync:PartnerSnapshotUrl` — reklam5 snapshot GET (query’siz path imzalanır)
+- `EcommerceSync:SubscriberUrl` — `https://www.cavaliersanmarco.it/webhook/cavalierp-stock`
+- `EcommerceSync:SubscriberBearerToken` — reklam5 Bearer (testteki ile aynı; git’e yazılmaz)
+- `EcommerceSync:PartnerSnapshotUrl` — `https://www.cavaliersanmarco.it/en/data/plugin/get.ciqra?pluginName=cavalierp-stock-snapshot` (imza path: `{timestamp}.GET./en/data/plugin/get.ciqra`; query imzaya girmez)
 
 ## Verify
 

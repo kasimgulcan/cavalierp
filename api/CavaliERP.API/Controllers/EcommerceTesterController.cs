@@ -46,12 +46,12 @@ public sealed class EcommerceTesterController(
     }
 
     [HttpPost("api/product-catalog")]
-    public async Task<IActionResult> ProductCatalog(CancellationToken ct)
+    public async Task<IActionResult> ProductCatalog([FromQuery] DateTimeOffset? since, CancellationToken ct)
     {
         if (Closed())
             return NotFound(new { success = false, error = "Not found." });
 
-        var result = await shop.GetProductCatalogAsync(ApiBase(), ct);
+        var result = await shop.GetProductCatalogAsync(ApiBase(), since, ct);
         return Proxy(result);
     }
 

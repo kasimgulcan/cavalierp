@@ -22,8 +22,19 @@ public sealed class EcommerceShopSimulator(
     public Task<ShopCallResult> GetSnapshotAsync(string apiBaseUrl, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Get, Combine(apiBaseUrl, SnapshotPath), body: null, canonicalPath: SnapshotPath, ct);
 
-    public Task<ShopCallResult> GetProductCatalogAsync(string apiBaseUrl, CancellationToken ct = default) =>
-        SendAsync(HttpMethod.Get, Combine(apiBaseUrl, ProductCatalogPath), body: null, canonicalPath: ProductCatalogPath, ct);
+    public Task<ShopCallResult> GetProductCatalogAsync(
+        string apiBaseUrl,
+        DateTimeOffset? since = null,
+        CancellationToken ct = default)
+    {
+        var url = Combine(apiBaseUrl, ProductCatalogPath);
+        if (since is not null)
+            url = new Uri(Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+                url.ToString(),
+                "since",
+                since.Value.ToUniversalTime().ToString("o")));
+        return SendAsync(HttpMethod.Get, url, body: null, canonicalPath: ProductCatalogPath, ct);
+    }
 
     public Task<ShopCallResult> ApplyAsync(
         string apiBaseUrl,

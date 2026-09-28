@@ -7,10 +7,11 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 CREATE OR ALTER PROCEDURE dbo.GetSKUSnapshot
+    @Since datetimeoffset(7) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    EXEC dbo.GetSKU;
-    EXEC dbo.GetSKU_ModelReference;
+    EXEC dbo.GetSKU @Since = @Since;
+    EXEC dbo.GetSKU_ModelReference @Since = @Since;
 END
 GO

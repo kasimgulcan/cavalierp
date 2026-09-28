@@ -13,6 +13,7 @@ import 'home_shell_tab_provider.dart';
 import 'pending_order_checkout_provider.dart';
 import 'order_request_provider.dart';
 import 'sale_provider.dart';
+import 'sale_session.dart';
 import 'widgets/cart_summary_bar.dart';
 import 'widgets/checkout_discount_section.dart';
 import 'widgets/checkout_form_section.dart';
@@ -93,6 +94,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _saveDraft();
     ref.read(homeShellTabProvider.notifier).state = kHomeShellProductsTabIndex;
     context.go('/home');
+  }
+
+  void _resetLocalForm() {
+    if (!mounted) return;
+    _customer.clear();
+    _phone.clear();
+    _email.clear();
+    _note.clear();
+    setState(() {
+      _paymentTypeId = null;
+      _discount = const CheckoutDiscountInput();
+      _prefilled = true;
+    });
   }
 
   Future<void> _complete() async {
@@ -203,6 +217,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int?>(editingSaleIdProvider, (previous, next) {
+      if (previous != null && next == null) {
+        _resetLocalForm();
+      }
+    });
+
     final paymentTypes = ref.watch(_paymentTypesProvider);
     final lines = ref.watch(cartProvider);
     final pending = ref.watch(pendingOrderCheckoutProvider);
@@ -240,13 +260,55 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ],
         ),
         body: lines.isEmpty
-            ? const Center(child: Text('Sepet boş'))
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Sepet boş'),
+                    if (editingId != null) ...[
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () => confirmAndStartNewSale(
+                                  context,
+                                  ref,
+                                  editingId,
+                                ),
+                        child: const Text('Yeni satış'),
+                      ),
+                    ],
+                  ],
+                ),
+              )
             : Column(
                 children: [
                   Expanded(
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       children: [
+                        if (editingId != null) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Satış #$editingId güncellenecek.',
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _loading
+                                    ? null
+                                    : () => confirmAndStartNewSale(
+                                          context,
+                                          ref,
+                                          editingId,
+                                        ),
+                                child: const Text('Yeni satış'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         CheckoutFormSection(
                           title: 'Müşteri',
                           children: [

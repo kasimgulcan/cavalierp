@@ -11,7 +11,16 @@ import 'models/product.dart';
 import 'models/sale.dart';
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartLine>>((ref) {
-  final notifier = CartNotifier(ref.watch(spClientProvider));
+  final notifier = CartNotifier(
+    ref.watch(spClientProvider),
+    onBecameEmpty: () {
+      // An open edit lives only in memory. An empty cart means that edit is
+      // over; the saved sale is left untouched.
+      if (ref.read(editingSaleIdProvider) == null) return;
+      ref.read(editingSaleIdProvider.notifier).state = null;
+      ref.read(checkoutDraftProvider.notifier).clear();
+    },
+  );
   ref.listen(authStateProvider, (previous, next) {
     if (next.valueOrNull != true) {
       notifier.clear();
@@ -22,9 +31,16 @@ final cartProvider = StateNotifierProvider<CartNotifier, List<CartLine>>((ref) {
 });
 
 class CartNotifier extends StateNotifier<List<CartLine>> {
-  CartNotifier(this._spClient) : super([]);
+  CartNotifier(this._spClient, {this.onBecameEmpty}) : super([]);
 
   final SpClient _spClient;
+  final void Function()? onBecameEmpty;
+
+  void _setLines(List<CartLine> next) {
+    final becameEmpty = state.isNotEmpty && next.isEmpty;
+    state = next;
+    if (becameEmpty) onBecameEmpty?.call();
+  }
 
   double totalFor(int currencyId) => roundSaleMoney(
         state.fold(0, (sum, line) => sum + line.lineTotalFor(currencyId)),
@@ -87,10 +103,10 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
   }
 
   void removeLine(int sizeId) {
-    state = state.where((l) => l.product.sizeId != sizeId).toList();
+    _setLines(state.where((l) => l.product.sizeId != sizeId).toList());
   }
 
-  void clear() => state = [];
+  void clear() => _setLines([]);
 
   void setGift(int sizeId, bool isGift) {
     state = [
@@ -110,7 +126,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
 
   void loadFromSaleDetail(SaleDetail detail) {
     final currencyId = detail.currencyId ?? kDefaultCurrencyId;
-    state = [
+    _setLines([
       for (final line in detail.lines)
         CartLine(
           product: _productFromSaleLine(line, currencyId),
@@ -120,12 +136,12 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
               line.listPrice > 0 ? line.listPrice : line.unitPrice,
           isGift: line.unitPrice == 0 && line.listPrice > 0,
         ),
-    ];
+    ]);
   }
 
   void loadFromOrderRequest(OrderRequestDetail detail) {
     final currencyId = detail.currencyId ?? kDefaultCurrencyId;
-    state = [
+    _setLines([
       for (final line in detail.lines)
         CartLine(
           product: _productFromOrderLine(line, currencyId),
@@ -134,7 +150,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
           listPriceOverride:
               line.listPrice > 0 ? line.listPrice : line.unitPrice,
         ),
-    ];
+    ]);
   }
 
   Product _productFromSaleLine(SaleLine line, int currencyId) {

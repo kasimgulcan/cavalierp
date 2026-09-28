@@ -725,17 +725,50 @@ SELECT
     ,ps.StyleId
     ,[THE AFTER COLLECTION] = CASE WHEN v.TheAfterCollection = 1 THEN '242' ELSE NULL END
     ,[MODEL SIZE INFO] = mref.Caption
+    ,LastModifiedOn = (
+        SELECT MAX(d)
+        FROM (VALUES
+            (s.LastModifiedOn),
+            (a.LastModifiedOn),
+            (v.LastModifiedOn),
+            (si.LastModifiedOn),
+            (mcat.LastModifiedOn),
+            (wcat.LastModifiedOn),
+            (pg.LastModifiedOn),
+            (pgw.LastModifiedOn),
+            (tg.LastModifiedOn),
+            (pc.LastModifiedOn),
+            (pgc.LastModifiedOn),
+            (sch.LastModifiedOn),
+            (mf.LastModifiedOn),
+            (fm.LastModifiedOn),
+            (sea.LastModifiedOn),
+            (mref.LastModifiedOn),
+            (mc.LastModifiedOn),
+            (sc.LastModifiedOn),
+            (szs.LastModifiedOn)
+        ) AS x(d)
+    )
 FROM dbo.V_ProductSize ps
 LEFT JOIN dbo.Style s ON s.StyleId = ps.StyleId
 LEFT JOIN dbo.Article a ON a.ArticleId = ps.ArticleId
 LEFT JOIN dbo.Variant v ON v.VariantId = ps.VariantId
+LEFT JOIN dbo.Size si ON si.SizeId = ps.SizeId
 LEFT JOIN dbo.MainCategory mcat ON mcat.MainCategoryId = s.MainCategoryId
 LEFT JOIN dbo.WebCategory wcat ON wcat.WebCategoryId = s.WebCategoryId
+LEFT JOIN dbo.ProductGroup pg ON pg.ProductGroupId = s.ProductGroupId
 LEFT JOIN dbo.ProductGroupWeb pgw ON pgw.ProductGroupId = s.ProductGroupId AND pgw.WebCategoryId = wcat.WebCategoryId
-LEFT JOIN dbo.ProductCategoryWeb pgc ON pgc.ProductCategoryId = s.ProductCategoryId AND pgc.WebCategoryId = wcat.WebCategoryId
 LEFT JOIN dbo.TypeGender tg ON tg.TypeGenderId = s.TypeGenderId
+LEFT JOIN dbo.ProductCategory pc ON pc.ProductCategoryId = s.ProductCategoryId
+LEFT JOIN dbo.ProductCategoryWeb pgc ON pgc.ProductCategoryId = s.ProductCategoryId AND pgc.WebCategoryId = wcat.WebCategoryId
 LEFT JOIN dbo.SizeChart sch ON sch.SizeChartId = s.SizeChartId
+LEFT JOIN dbo.MainFabric mf ON mf.MainFabricId = a.MainFabricId
+LEFT JOIN dbo.FabricMaterial fm ON fm.FabricMaterialId = a.FabricMaterialId
+LEFT JOIN dbo.Season sea ON sea.SeasonId = a.SeasonId
 LEFT JOIN dbo.ModelReference mref ON mref.ModelReferenceId = v.ModelReferenceId
+LEFT JOIN dbo.Color mc ON mc.ColorId = v.MainColorId
+LEFT JOIN dbo.Color sc ON sc.ColorId = v.SecondaryColorId
+LEFT JOIN dbo.SizeSet szs ON szs.SizeSetId = s.SizeSetId
 LEFT JOIN dbo.V_FullProductCode c1 ON c1.VariantId = v.AlsoInThePhoto1
 LEFT JOIN dbo.V_FullProductCode c2 ON c2.VariantId = v.AlsoInThePhoto2
 LEFT JOIN dbo.V_FullProductCode c3 ON c3.VariantId = v.AlsoInThePhoto3
@@ -3327,6 +3360,7 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 CREATE   PROCEDURE [dbo].[GetSKU]
+    @Since datetimeoffset(7) = NULL
 AS
 SELECT *
 INTO #x
@@ -3474,9 +3508,11 @@ SELECT
     ,s.[THE AFTER COLLECTION]
     ,s.[MODEL SIZE INFO]
     ,[SKU ID] = s.SizeId
+    ,s.LastModifiedOn
 FROM #x s
 LEFT JOIN #Colors c ON c.[STYLE NAME] = s.[STYLE NAME]
 LEFT JOIN #sizes si ON si.[STYLE NAME] = s.[STYLE NAME]
+WHERE @Since IS NULL OR s.LastModifiedOn >= @Since
 ORDER BY s.StyleId;
 GO
 /****** Object:  StoredProcedure [dbo].[GetSKU_ModelReference]    Script Date: 30.08.2026 06:43:14 ******/
@@ -3486,8 +3522,9 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 CREATE   PROCEDURE [dbo].[GetSKU_ModelReference]
+    @Since datetimeoffset(7) = NULL
 AS
-SELECT DISTINCT
+SELECT
      [STYLE NAME]
     ,[PRODUCT NAME]
     ,[PRODUCT CODE]
@@ -3495,7 +3532,18 @@ SELECT DISTINCT
     ,[SECONDARY COLOR]
     ,[FULL PRODUCT CODE]
     ,[MODEL REFERENCE]
-FROM dbo.V_SKU;
+    ,LastModifiedOn = MAX(LastModifiedOn)
+FROM dbo.V_SKU
+GROUP BY
+     [STYLE NAME]
+    ,[PRODUCT NAME]
+    ,[PRODUCT CODE]
+    ,[MAIN COLOR]
+    ,[SECONDARY COLOR]
+    ,[FULL PRODUCT CODE]
+    ,[MODEL REFERENCE]
+HAVING @Since IS NULL OR MAX(LastModifiedOn) >= @Since;
+
 SELECT
      [MODEL NAME] = ModelName
     ,[MODEL REFERENCE] = WebSiteCode
@@ -3510,7 +3558,9 @@ SELECT
     ,[WAIST] = CONCAT(WaistCm, CASE WHEN WaistCm IS NULL THEN '' ELSE ' CM' END)
     ,[HIPS] = CONCAT(HipsCm, CASE WHEN HipsCm IS NULL THEN '' ELSE ' CM' END)
     ,[SHOE SIZE] = CONCAT(ShoeSizeEU, CASE WHEN ShoeSizeEU IS NULL THEN '' ELSE ' EU' END)
-FROM dbo.ModelReference;
+    ,LastModifiedOn
+FROM dbo.ModelReference
+WHERE @Since IS NULL OR LastModifiedOn >= @Since;
 GO
 /****** Object:  StoredProcedure [dbo].[GetSKUMapping]    Script Date: 30.08.2026 06:43:14 ******/
 SET ANSI_NULLS ON

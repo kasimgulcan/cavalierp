@@ -190,9 +190,13 @@
     </section>
     <section class="card">
       <h2>Ürün kataloğu</h2>
-      <p class="hint">HMAC GET <code>/integrations/ecommerce/products/snapshot</code> — stok snapshot’ına dokunmaz.</p>
+      <p class="hint">HMAC GET <code>/integrations/ecommerce/products/snapshot</code> — stok snapshot’ına dokunmaz. <code>since</code> boşsa tüm liste; doluysa <code>LastModifiedOn &gt;= since</code>.</p>
       <div class="row">
+        <label>since
+          <input id="catalogSince" spellcheck="false" placeholder="2026-09-07T17:00:00Z (boş = tümü)" />
+        </label>
         <button type="button" class="gold" id="btnProductCatalog">Ürün kataloğu çek</button>
+        <button type="button" class="ghost" id="btnProductCatalogDownload">JSON indir</button>
       </div>
       <div class="status" id="catalogStatus"></div>
     </section>
@@ -238,6 +242,7 @@
     const partnerInfoEl = document.getElementById("partnerInfo");
     let busy = false;
     let lastInboxJson = "";
+    let lastCatalog = null;
     const traffic = [];
 
     function log(title, text) {
@@ -343,7 +348,9 @@
       const catalogStatusEl = document.getElementById("catalogStatus");
       catalogStatusEl.textContent = "Ürün kataloğu alınıyor…";
       try {
-        const res = await post("api/product-catalog");
+        const since = document.getElementById("catalogSince").value.trim();
+        const catalogUrl = since ? "api/product-catalog?since=" + encodeURIComponent(since) : "api/product-catalog";
+        const res = await post(catalogUrl);
         let parsed = null;
         try { parsed = JSON.parse(res.text); } catch {}
         const skus = parsed && Array.isArray(parsed.skus) ? parsed.skus : [];
@@ -359,6 +366,7 @@
         if (sampleSku) summary.push("sample SKU CODE: " + sampleSku["SKU CODE"]);
         log("PRODUCT CATALOG HTTP " + res.status, summary.join("\n"));
         if (res.status >= 200 && res.status < 300 && parsed && Array.isArray(parsed.skus)) {
+          lastCatalog = parsed;
           const sample = parsed.skus[0] ? (parsed.skus[0]["SKU CODE"] || parsed.skus[0]["STYLE NAME"] || "") : "";
           catalogStatusEl.innerHTML = '<span class="ok">' + parsed.skus.length + " SKU" + (sample ? " · " + sample : "") + "</span>";
         } else {
@@ -370,6 +378,17 @@
       } finally {
         setBusy(false);
       }
+    }
+    async function downloadProductCatalog() {
+      const catalogStatusEl = document.getElementById("catalogStatus");
+      if (!lastCatalog) {
+        await productCatalog();
+      }
+      if (!lastCatalog) {
+        catalogStatusEl.innerHTML = '<span class="bad">İndirilecek katalog yok</span>';
+        return;
+      }
+      downloadJson("cavalierp-product-catalog-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json", lastCatalog);
     }
     async function apply() {
       const sku = skuEl.value.trim();
@@ -486,6 +505,7 @@
 
     document.getElementById("btnSnapshot").addEventListener("click", snapshot);
     document.getElementById("btnProductCatalog").addEventListener("click", productCatalog);
+    document.getElementById("btnProductCatalogDownload").addEventListener("click", downloadProductCatalog);
     document.getElementById("btnPartnerSnapshot").addEventListener("click", partnerSnapshot);
     document.getElementById("btnApply").addEventListener("click", apply);
     document.getElementById("btnInbox").addEventListener("click", () => refreshInbox(false));
