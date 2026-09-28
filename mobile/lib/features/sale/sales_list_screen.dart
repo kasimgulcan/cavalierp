@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'currency_display.dart';
 import 'currency_provider.dart';
+import 'models/sale_flags.dart';
 import 'sale_provider.dart';
 import 'widgets/order_list_empty_state.dart';
 import 'widgets/sale_list_card.dart';
@@ -21,6 +22,8 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   final _scrollController = ScrollController();
   DateTime? _dateFrom;
   DateTime? _dateTo;
+  SaleFlagKind? _flag;
+  bool _onlyFlagged = false;
   late SaleListFilter _filter;
 
   @override
@@ -42,7 +45,41 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   SaleListFilter _buildFilter() => SaleListFilter(
         dateFrom: _dateFrom,
         dateTo: _dateTo,
+        flag: _flag,
+        onlyFlagged: _onlyFlagged,
       );
+
+  void _selectAll() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    setState(() {
+      _flag = null;
+      _onlyFlagged = false;
+      _dateFrom ??= today;
+      _dateTo ??= today;
+    });
+    _applyFilter();
+  }
+
+  void _selectFlag(SaleFlagKind flag) {
+    setState(() {
+      _flag = flag;
+      _onlyFlagged = false;
+      _dateFrom = null;
+      _dateTo = null;
+    });
+    _applyFilter();
+  }
+
+  void _selectFlagged() {
+    setState(() {
+      _flag = null;
+      _onlyFlagged = true;
+      _dateFrom = null;
+      _dateTo = null;
+    });
+    _applyFilter();
+  }
 
   void _applyFilter() {
     setState(() => _filter = _buildFilter());
@@ -76,7 +113,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   }
 
   String _formatDisplayDate(DateTime? date) {
-    if (date == null) return '—';
+    if (date == null) return 'Tüm tarihler';
     return '${date.day.toString().padLeft(2, '0')}.'
         '${date.month.toString().padLeft(2, '0')}.'
         '${date.year}';
@@ -112,6 +149,16 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
               dateToLabel: _formatDisplayDate(_dateTo),
               onPickDateFrom: () => _pickDate(isFrom: true),
               onPickDateTo: () => _pickDate(isFrom: false),
+              selectedFlag: _flag,
+              onlyFlagged: _onlyFlagged,
+              onSelectFlag: (flag) {
+                if (flag == null) {
+                  _selectAll();
+                } else {
+                  _selectFlag(flag);
+                }
+              },
+              onSelectFlagged: _selectFlagged,
             ),
           ),
           if (!state.isLoading && state.items.isNotEmpty) ...[
@@ -163,10 +210,14 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     if (state.items.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
+        children: [
           OrderListEmptyState(
-            title: 'Bu tarih aralığında satış yok',
-            subtitle: 'Farklı bir tarih aralığı seçmeyi deneyin.',
+            title: _filter.flag != null || _filter.onlyFlagged
+                ? 'Bu bayrakta satış yok'
+                : 'Bu tarih aralığında satış yok',
+            subtitle: _filter.flag != null || _filter.onlyFlagged
+                ? 'Başka bir işaret seçmeyi veya tarihi daraltmayı deneyin.'
+                : 'Farklı bir tarih aralığı seçmeyi deneyin.',
             icon: Icons.point_of_sale_outlined,
           ),
         ],

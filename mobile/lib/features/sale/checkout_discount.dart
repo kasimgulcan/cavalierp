@@ -42,9 +42,16 @@ class CheckoutDiscountInput {
     );
   }
 
+  /// Pozitif tutar indirimdir. Negatif tutar, yüzde sonrası nete eklenen
+  /// yuvarlama düzeltmesidir ve liste fiyatının üstüne çıkamaz.
   double fixedDiscountAmount(double subtotal) {
-    if (fixedAmount <= 0) return 0;
-    return roundSaleMoney(fixedAmount.clamp(0, subtotalAfterPercent(subtotal)));
+    if (fixedAmount == 0 || subtotal <= 0) return 0;
+    final afterPercent = subtotalAfterPercent(subtotal);
+    if (fixedAmount > 0) {
+      return roundSaleMoney(fixedAmount.clamp(0, afterPercent));
+    }
+    final maxAddBack = roundSaleMoney(subtotal - afterPercent);
+    return roundSaleMoney(fixedAmount.clamp(-maxAddBack, 0));
   }
 
   double totalDiscountAmount(double subtotal) {

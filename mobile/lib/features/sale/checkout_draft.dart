@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_provider.dart';
 import 'checkout_discount.dart';
+import 'models/sale_flags.dart';
 
 class CheckoutDraft {
   const CheckoutDraft({
@@ -11,6 +12,7 @@ class CheckoutDraft {
     this.note = '',
     this.paymentTypeId,
     this.discount = const CheckoutDiscountInput(),
+    this.flags = const SaleFlags(),
   });
 
   final String customer;
@@ -19,6 +21,7 @@ class CheckoutDraft {
   final String note;
   final int? paymentTypeId;
   final CheckoutDiscountInput discount;
+  final SaleFlags flags;
 
   bool get hasUserInput =>
       customer.trim().isNotEmpty ||
@@ -27,7 +30,8 @@ class CheckoutDraft {
       note.trim().isNotEmpty ||
       paymentTypeId != null ||
       discount.percent > 0 ||
-      discount.fixedAmount > 0;
+      discount.fixedAmount != 0 ||
+      flags.any;
 }
 
 class CheckoutDraftNotifier extends StateNotifier<CheckoutDraft> {

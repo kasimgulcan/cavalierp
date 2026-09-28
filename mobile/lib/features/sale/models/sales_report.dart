@@ -1,4 +1,5 @@
 import '../../../core/models/json_field.dart';
+import 'size_order.dart';
 
 class SalesReportSizeLine {
   const SalesReportSizeLine({
@@ -8,6 +9,7 @@ class SalesReportSizeLine {
     this.productCode,
     this.color,
     this.sizeLabel,
+    this.sizePos,
     required this.quantity,
     required this.amount,
   });
@@ -18,6 +20,7 @@ class SalesReportSizeLine {
   final String? productCode;
   final String? color;
   final String? sizeLabel;
+  final int? sizePos;
   final int quantity;
   final double amount;
 
@@ -29,6 +32,7 @@ class SalesReportSizeLine {
       productCode: json.stringField('ProductCode'),
       color: json.stringField('Color'),
       sizeLabel: json.stringField('SizeLabel'),
+      sizePos: json.intField('Pos'),
       quantity: json.intField('Quantity') ?? 0,
       amount: json.doubleField('Amount') ?? 0,
     );
@@ -89,7 +93,12 @@ class SalesReport {
     final products = grouped.entries.map((entry) {
       final sizes = [...entry.value]
         ..sort(
-          (a, b) => (a.sizeLabel ?? '').compareTo(b.sizeLabel ?? ''),
+          (a, b) => compareBySizePosition(
+            positionA: a.sizePos,
+            positionB: b.sizePos,
+            labelA: a.sizeLabel ?? '',
+            labelB: b.sizeLabel ?? '',
+          ),
         );
       final primary = sizes.first;
       return SalesReportProductGroup(

@@ -3,6 +3,7 @@ import '../../core/models/json_field.dart';
 import '../../core/network/sp_client.dart';
 import '../auth/auth_provider.dart';
 import 'models/product.dart';
+import 'turkish_search.dart';
 
 const kProductPageSize = 30;
 
@@ -88,34 +89,55 @@ class ProductListNotifier extends StateNotifier<ProductListState> {
 
   Future<void> _loadPage({required bool reset}) async {
     final nextPage = reset ? 1 : _page + 1;
+    final searches = _filter.search.isEmpty
+        ? const <String?>[null]
+        : turkishISearchVariants(_filter.search);
     try {
-      final response = await _client.exec(
-        'Product.List',
-        {
-          'Search': _filter.search.isEmpty ? null : _filter.search,
-          'Page': nextPage,
-          'PageSize': kProductPageSize,
-        },
-        auth: false,
+      final responses = await Future.wait(
+        searches.map(
+          (search) => _client.exec(
+            'Product.List',
+            {
+              'Search': search == null || search.isEmpty ? null : search,
+              'Page': nextPage,
+              'PageSize': kProductPageSize,
+            },
+            auth: false,
+          ),
+        ),
       );
       if (!mounted) return;
-      if (!response.success) {
-        if (!mounted) return;
-        state = state.copyWith(
-          isLoading: false,
-          isLoadingMore: false,
-          error: response.error ?? 'Ürünler yüklenemedi',
-        );
-        return;
+      for (final response in responses) {
+        if (!response.success) {
+          state = state.copyWith(
+            isLoading: false,
+            isLoadingMore: false,
+            error: response.error ?? 'Ürünler yüklenemedi',
+          );
+          return;
+        }
       }
-      final batch = parseRowList(response.data)
-          .map((row) => Product.fromJson(row))
-          .toList();
+
+      final seen = <int>{
+        if (!reset) ...state.items.map((product) => product.sizeId),
+      };
+      final batch = <Product>[];
+      var hasMore = false;
+      for (final response in responses) {
+        final rows = parseRowList(response.data)
+            .map((row) => Product.fromJson(row))
+            .toList();
+        if (rows.length >= kProductPageSize) hasMore = true;
+        for (final product in rows) {
+          if (seen.add(product.sizeId)) batch.add(product);
+        }
+      }
+
       _page = nextPage;
       if (!mounted) return;
       state = ProductListState(
         items: reset ? batch : [...state.items, ...batch],
-        hasMore: batch.length >= kProductPageSize,
+        hasMore: hasMore,
       );
       _scheduleImageEnrichment(batch);
     } catch (e) {

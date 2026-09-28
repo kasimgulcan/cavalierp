@@ -13,8 +13,10 @@ import 'home_shell_tab_provider.dart';
 import 'pending_order_checkout_provider.dart';
 import 'order_request_provider.dart';
 import 'sale_provider.dart';
+import 'models/sale_flags.dart';
 import 'sale_session.dart';
 import 'widgets/cart_summary_bar.dart';
+import 'widgets/sale_flag_picker.dart';
 import 'widgets/checkout_discount_section.dart';
 import 'widgets/checkout_form_section.dart';
 import 'widgets/checkout_line_tile.dart';
@@ -41,6 +43,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _phone = TextEditingController();
   final _email = TextEditingController();
   int? _paymentTypeId;
+  SaleFlags _flags = const SaleFlags();
   final _note = TextEditingController();
   bool _loading = false;
   bool _prefilled = false;
@@ -55,6 +58,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _email.text = draft.email;
     _note.text = draft.note;
     _paymentTypeId = draft.paymentTypeId;
+    _flags = draft.flags;
     _discount = draft.discount;
   }
 
@@ -76,6 +80,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             note: _note.text,
             paymentTypeId: _paymentTypeId,
             discount: _discount,
+            flags: _flags,
           ),
         );
   }
@@ -104,6 +109,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _note.clear();
     setState(() {
       _paymentTypeId = null;
+      _flags = const SaleFlags();
       _discount = const CheckoutDiscountInput();
       _prefilled = true;
     });
@@ -167,6 +173,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               orderRequestId: pending?.orderRequestId,
               discountPercent: _discount.percent,
               discountFixedAmount: _discount.fixedAmount,
+              flags: _flags,
             )
         : await ref.read(cartProvider.notifier).updateSale(
               saleId: editingId,
@@ -181,6 +188,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ),
               discountPercent: _discount.percent,
               discountFixedAmount: _discount.fixedAmount,
+              flags: _flags,
             );
     setState(() => _loading = false);
     if (!mounted) return;
@@ -211,6 +219,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         context.go('/sales/$editingId');
       }
       return;
+    }
+    for (final entry in _flags.toParams().entries) {
+      result.putIfAbsent(entry.key, () => entry.value);
     }
     context.go('/sale-summary', extra: result);
   }
@@ -374,6 +385,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               loading: () => const LinearProgressIndicator(),
                               error: (_, _) =>
                                   const Text('Ödeme tipleri yüklenemedi'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        CheckoutFormSection(
+                          title: 'Bayrak',
+                          children: [
+                            SaleFlagPicker(
+                              flags: _flags,
+                              onChanged: (flags) {
+                                setState(() => _flags = flags);
+                                _saveDraft();
+                              },
                             ),
                           ],
                         ),

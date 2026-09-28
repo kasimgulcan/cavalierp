@@ -17,7 +17,9 @@ import 'sale_totals.dart';
 import 'widgets/checkout_form_section.dart';
 import 'widgets/order_request_contact_section.dart';
 import 'widgets/order_request_total_bar.dart';
+import 'models/sale_flags.dart';
 import 'widgets/sale_detail_action_bar.dart';
+import 'widgets/sale_flag_picker.dart';
 import 'widgets/sale_discount_summary_section.dart';
 import 'widgets/sale_line_tile.dart';
 
@@ -42,6 +44,7 @@ class SaleDetailScreen extends ConsumerStatefulWidget {
 
 class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
   bool _cancelling = false;
+  bool _savingFlags = false;
 
   String _formatDateTime(DateTime dt) {
     return '${dt.day.toString().padLeft(2, '0')}.'
@@ -101,6 +104,21 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
     }
   }
 
+  Future<void> _setFlags(SaleDetail detail, SaleFlags flags) async {
+    setState(() => _savingFlags = true);
+    final error = await ref.read(saleRepositoryProvider).setFlags(
+          saleId: detail.saleId,
+          flags: flags,
+        );
+    if (!mounted) return;
+    setState(() => _savingFlags = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    ref.invalidate(saleDetailProvider(widget.saleId));
+  }
+
   void _edit(SaleDetail detail) {
     final parsed = parseCheckoutNote(detail.note);
     ref.read(cartProvider.notifier).loadFromSaleDetail(detail);
@@ -111,6 +129,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
             email: parsed.email ?? '',
             note: parsed.note ?? '',
             paymentTypeId: detail.paymentTypeId,
+            flags: detail.flags,
             discount: CheckoutDiscountInput(
               percent: detail.discountPercent ?? 0,
               fixedAmount: detail.discountFixedAmount ?? 0,
@@ -178,9 +197,11 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
             orElse: () => null,
           ),
           cancelling: _cancelling,
+          savingFlags: _savingFlags,
           formatDateTime: _formatDateTime,
           onCancel: () => _cancel(detail),
           onEdit: () => _edit(detail),
+          onFlagsChanged: (flags) => _setFlags(detail, flags),
         ),
       ),
     );
@@ -193,18 +214,22 @@ class _SaleDetailBody extends StatelessWidget {
     required this.symbol,
     required this.paymentTypeName,
     required this.cancelling,
+    required this.savingFlags,
     required this.formatDateTime,
     required this.onCancel,
     required this.onEdit,
+    required this.onFlagsChanged,
   });
 
   final SaleDetail detail;
   final String symbol;
   final String? paymentTypeName;
   final bool cancelling;
+  final bool savingFlags;
   final String Function(DateTime) formatDateTime;
   final VoidCallback onCancel;
   final VoidCallback onEdit;
+  final ValueChanged<SaleFlags> onFlagsChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -257,6 +282,17 @@ class _SaleDetailBody extends StatelessWidget {
                 phone: parsedNote.phone,
                 email: parsedNote.email,
                 memberEmail: detail.staffEmail,
+              ),
+              const SizedBox(height: 12),
+              CheckoutFormSection(
+                title: 'Bayrak',
+                children: [
+                  SaleFlagPicker(
+                    flags: detail.flags,
+                    enabled: !savingFlags,
+                    onChanged: onFlagsChanged,
+                  ),
+                ],
               ),
               if (paymentTypeName != null) ...[
                 const SizedBox(height: 12),

@@ -40,6 +40,18 @@ void main() {
     expect(input.grandTotal(1000), 950);
   });
 
+  test('negative fixed amount rounds the discounted total up', () {
+    const input = CheckoutDiscountInput(percent: 20, fixedAmount: -8);
+    expect(input.percentDiscountAmount(12090), 2418);
+    expect(input.fixedDiscountAmount(12090), -8);
+    expect(input.grandTotal(12090), 9680);
+  });
+
+  test('negative adjustment cannot raise the total above the list price', () {
+    const input = CheckoutDiscountInput(percent: 20, fixedAmount: -99999);
+    expect(input.grandTotal(12090), 12090);
+  });
+
   test('percent then fixed amount on remaining subtotal', () {
     const input = CheckoutDiscountInput(percent: 10, fixedAmount: 5000);
     expect(input.percentDiscountAmount(100000), 10000);

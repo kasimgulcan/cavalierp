@@ -59,14 +59,15 @@ class SaleDiscountSummarySection extends StatelessWidget {
                 valueColor: colorScheme.error,
               ),
             ],
-            if (discount.fixedAmount > 0) ...[
+            if (fixedAmount != 0) ...[
               const SizedBox(height: 8),
               _Row(
-                label: 'Tutar indirimi',
-                value:
-                    '- ${formatSaleMoney(roundSaleMoney(fixedAmount), symbol)}',
+                label: fixedAmount < 0 ? 'Tutar düzeltmesi' : 'Tutar indirimi',
+                value: fixedAmount < 0
+                    ? '+ ${formatSaleMoney(roundSaleMoney(fixedAmount.abs()), symbol)}'
+                    : '- ${formatSaleMoney(roundSaleMoney(fixedAmount), symbol)}',
                 theme: theme,
-                valueColor: colorScheme.error,
+                valueColor: fixedAmount < 0 ? null : colorScheme.error,
               ),
             ],
             const SizedBox(height: 8),

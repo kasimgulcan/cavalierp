@@ -4,6 +4,7 @@ import '../../core/models/json_field.dart';
 import '../../core/network/sp_client.dart';
 import '../auth/auth_provider.dart';
 import 'models/sale.dart';
+import 'models/sale_flags.dart';
 
 const kSalePageSize = 30;
 
@@ -11,17 +12,25 @@ class SaleListFilter {
   const SaleListFilter({
     this.dateFrom,
     this.dateTo,
+    this.flag,
+    this.onlyFlagged = false,
   });
 
   final DateTime? dateFrom;
   final DateTime? dateTo;
+  final SaleFlagKind? flag;
+  final bool onlyFlagged;
 
   @override
   bool operator ==(Object other) =>
-      other is SaleListFilter && other.dateFrom == dateFrom && other.dateTo == dateTo;
+      other is SaleListFilter &&
+      other.dateFrom == dateFrom &&
+      other.dateTo == dateTo &&
+      other.flag == flag &&
+      other.onlyFlagged == onlyFlagged;
 
   @override
-  int get hashCode => Object.hash(dateFrom, dateTo);
+  int get hashCode => Object.hash(dateFrom, dateTo, flag, onlyFlagged);
 }
 
 class SaleListState {
@@ -104,6 +113,10 @@ class SaleListNotifier extends StateNotifier<SaleListState> {
         'DateTo': _formatDate(_filter.dateTo),
         'Page': nextPage,
         'PageSize': kSalePageSize,
+        ...saleListFlagParams(
+          flag: _filter.flag,
+          onlyFlagged: _filter.onlyFlagged,
+        ),
       });
       if (!mounted) return;
       if (!response.success) {
@@ -154,6 +167,18 @@ class SaleRepository {
       'SaleId': saleId,
     });
     return response.success;
+  }
+
+  Future<String?> setFlags({
+    required int saleId,
+    required SaleFlags flags,
+  }) async {
+    final response = await _client.exec('Sale.SetFlags', {
+      'SaleId': saleId,
+      ...flags.toParams(),
+    });
+    if (response.success) return null;
+    return response.error ?? 'İşaret kaydedilemedi';
   }
 }
 

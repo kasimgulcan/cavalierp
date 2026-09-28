@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/format/price_format.dart';
 import '../models/sale.dart';
+import 'sale_flag_picker.dart';
 
 class SaleListCard extends StatelessWidget {
   const SaleListCard({
@@ -63,16 +64,27 @@ class SaleListCard extends StatelessWidget {
                         height: 1.2,
                       ),
                     ),
-                    if (_subtitle.isNotEmpty) ...[
+                    if (_subtitle.isNotEmpty || sale.flags.any) ...[
                       const SizedBox(height: 2),
-                      Text(
-                        _subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          height: 1.2,
-                        ),
+                      Row(
+                        children: [
+                          if (sale.flags.any) ...[
+                            SaleFlagMarks(flags: sale.flags),
+                            if (_subtitle.isNotEmpty) const SizedBox(width: 6),
+                          ],
+                          if (_subtitle.isNotEmpty)
+                            Expanded(
+                              child: Text(
+                                _subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ],

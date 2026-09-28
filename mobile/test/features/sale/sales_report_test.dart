@@ -44,4 +44,39 @@ void main() {
     expect(shirt.totalAmount, 310);
     expect(shirt.sizes, hasLength(2));
   });
+
+  test('SalesReport orders sizes by Pos from small to large', () {
+    final report = SalesReport.fromRows([
+      {
+        'Product': 'Tayt - XL',
+        'ProductCode': 'CODE-1',
+        'SizeId': 1,
+        'SizeLabel': 'XL',
+        'Pos': 5,
+        'Quantity': 1,
+        'Amount': 100,
+      },
+      {
+        'Product': 'Tayt - XS',
+        'ProductCode': 'CODE-1',
+        'SizeId': 2,
+        'SizeLabel': 'XS',
+        'Pos': 2,
+        'Quantity': 1,
+        'Amount': 100,
+      },
+      {
+        'Product': 'Tayt - S',
+        'ProductCode': 'CODE-1',
+        'SizeId': 3,
+        'SizeLabel': 'S',
+        'Pos': 3,
+        'Quantity': 1,
+        'Amount': 100,
+      },
+    ]);
+
+    final product = report.products.single;
+    expect(product.sizes.map((line) => line.sizeLabel), ['XS', 'S', 'XL']);
+  });
 }

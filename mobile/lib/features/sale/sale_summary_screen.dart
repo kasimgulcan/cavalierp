@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/format/price_format.dart';
 import 'currency_display.dart';
 import 'currency_provider.dart';
+import 'models/sale_flags.dart';
 
 class SaleSummaryScreen extends ConsumerWidget {
   const SaleSummaryScreen({super.key, required this.sale});
@@ -29,6 +30,7 @@ class SaleSummaryScreen extends ConsumerWidget {
     final totalLabel = _totalAmount != null
         ? formatSaleMoney(roundSaleMoney(_totalAmount!), symbol)
         : null;
+    final flags = SaleFlags.fromJson(sale);
 
     return Scaffold(
       appBar: AppBar(
@@ -119,6 +121,14 @@ class SaleSummaryScreen extends ConsumerWidget {
                                       fontWeight: FontWeight.w800,
                                       color: colorScheme.primary,
                                     ),
+                                  ),
+                                ],
+                                if (flags.kind != null) ...[
+                                  const SizedBox(height: 18),
+                                  Icon(
+                                    Icons.flag_rounded,
+                                    size: 28,
+                                    color: SaleFlagStyle.of(flags.kind!).color,
                                   ),
                                 ],
                                 if (orderRequestId != null) ...[

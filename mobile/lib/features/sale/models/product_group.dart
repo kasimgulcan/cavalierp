@@ -1,5 +1,6 @@
 import '../../../core/format/price_format.dart';
 import 'product.dart';
+import 'size_order.dart';
 
 class ProductGroup {
   ProductGroup({required this.key, required this.sizes})
@@ -69,7 +70,12 @@ class ProductGroup {
     final groups = grouped.entries.map((entry) {
       final sizes = [...entry.value]
         ..sort(
-          (a, b) => (a.sizeLabel ?? '').compareTo(b.sizeLabel ?? ''),
+          (a, b) => compareBySizePosition(
+            positionA: a.sizePos,
+            positionB: b.sizePos,
+            labelA: a.sizeLabel ?? '',
+            labelB: b.sizeLabel ?? '',
+          ),
         );
       return ProductGroup(key: entry.key, sizes: sizes);
     }).toList();

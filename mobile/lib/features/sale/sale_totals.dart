@@ -37,7 +37,8 @@ extension SaleDetailTotals on SaleDetail {
 
   double get discountAmount => discountInput.totalDiscountAmount(listSubtotal);
 
-  bool get hasDiscount => discountAmount > 0;
+  bool get hasDiscount =>
+      (discountPercent ?? 0) > 0 || (discountFixedAmount ?? 0) != 0;
 }
 
 extension OrderRequestSaleDiscount on OrderRequestDetail {
@@ -45,7 +46,7 @@ extension OrderRequestSaleDiscount on OrderRequestDetail {
     if (convertedSaleId == null) return null;
     final percent = convertedSaleDiscountPercent ?? 0;
     final fixed = convertedSaleDiscountFixedAmount ?? 0;
-    if (percent <= 0 && fixed <= 0) return null;
+    if (percent <= 0 && fixed == 0) return null;
     return CheckoutDiscountInput(percent: percent, fixedAmount: fixed);
   }
 

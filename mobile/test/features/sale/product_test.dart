@@ -30,4 +30,17 @@ void main() {
     expect(product.priceFor(kEurCurrencyId), 50);
     expect(product.priceFor(kDefaultCurrencyId), 0);
   });
+
+  test('Product.fromJson reads size position from Pos', () {
+    final product = Product.fromJson({
+      'SizeId': 1,
+      'ProductName': 'Leggings',
+      'PriceTL': 1,
+      'StockQty': 1,
+      'Size': 'XS',
+      'Pos': 2,
+    });
+
+    expect(product.sizePos, 2);
+  });
 }

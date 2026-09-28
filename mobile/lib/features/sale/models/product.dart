@@ -12,6 +12,7 @@ class Product {
     this.styleName,
     this.color,
     this.sizeLabel,
+    this.sizePos,
     this.productCode,
     this.imageUrl,
   });
@@ -25,6 +26,7 @@ class Product {
   final String? styleName;
   final String? color;
   final String? sizeLabel;
+  final int? sizePos;
   final String? productCode;
   final String? imageUrl;
 
@@ -62,6 +64,7 @@ class Product {
         styleName: json.stringField('StyleName'),
         color: json.stringField('Color'),
         sizeLabel: json.stringField('Size'),
+        sizePos: json.intField('Pos'),
         productCode: json.stringField('ProductCode'),
         imageUrl: json.stringField('ImageUrl'),
       );
@@ -81,6 +84,7 @@ class Product {
       styleName: json.stringField('StyleName'),
       color: json.stringField('Color'),
       sizeLabel: json.stringField('Size'),
+      sizePos: json.intField('Pos'),
       productCode: json.stringField('ProductCode'),
       imageUrl: json.stringField('ImageUrl'),
     );
@@ -96,6 +100,7 @@ class Product {
         styleName: styleName,
         color: color,
         sizeLabel: sizeLabel,
+        sizePos: sizePos,
         productCode: productCode,
         imageUrl: imageUrl ?? this.imageUrl,
       );

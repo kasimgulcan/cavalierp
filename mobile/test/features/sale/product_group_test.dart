@@ -10,6 +10,7 @@ Product _product({
   String? styleName,
   String? color,
   String? sizeLabel,
+  int? sizePos,
   String? productCode,
 }) =>
     Product(
@@ -22,6 +23,7 @@ Product _product({
       styleName: styleName,
       color: color,
       sizeLabel: sizeLabel,
+      sizePos: sizePos,
       productCode: productCode,
     );
 
@@ -87,5 +89,41 @@ void main() {
     );
 
     expect(group.allSizesOutOfStock, isTrue);
+  });
+
+  test('ProductGroup orders sizes by Pos from small to large', () {
+    final groups = ProductGroup.fromProducts([
+      _product(
+        sizeId: 1,
+        productName: 'Leggings',
+        sizeLabel: 'XL',
+        sizePos: 5,
+        productCode: 'CODE-1',
+      ),
+      _product(
+        sizeId: 2,
+        productName: 'Leggings',
+        sizeLabel: 'XS',
+        sizePos: 2,
+        productCode: 'CODE-1',
+      ),
+      _product(
+        sizeId: 3,
+        productName: 'Leggings',
+        sizeLabel: 'S',
+        sizePos: 3,
+        productCode: 'CODE-1',
+      ),
+      _product(
+        sizeId: 4,
+        productName: 'Leggings',
+        sizeLabel: '6-7Y',
+        productCode: 'CODE-1',
+      ),
+    ]);
+
+    final group = groups.single;
+    expect(group.sizes.map((p) => p.sizeLabel), ['XS', 'S', 'XL', '6-7Y']);
+    expect(group.sizesLabel, 'XS - S - XL - 6-7Y');
   });
 }

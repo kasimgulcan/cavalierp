@@ -90,7 +90,7 @@ class _CheckoutDiscountSectionState extends State<CheckoutDiscountSection> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Önce % indirim, ardından kalan tutara tutar indirimi uygulanır.',
+          'Önce % indirim uygulanır. Eksi tutar, yuvarlama için net tutara eklenir.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -114,12 +114,12 @@ class _CheckoutDiscountSectionState extends State<CheckoutDiscountSection> {
             Expanded(
               child: TextField(
                 controller: _amount,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                ],
-                decoration: _decoration('Tutar indirimi'),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
+                inputFormatters: const [_SignedDecimalInputFormatter()],
+                decoration: _decoration('Tutar (+/−)'),
                 onChanged: (_) => _notify(),
               ),
             ),
@@ -127,5 +127,21 @@ class _CheckoutDiscountSectionState extends State<CheckoutDiscountSection> {
         ),
       ],
     );
+  }
+}
+
+class _SignedDecimalInputFormatter extends TextInputFormatter {
+  const _SignedDecimalInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    if (text.isEmpty || RegExp(r'^-?[0-9]*([.,][0-9]*)?$').hasMatch(text)) {
+      return newValue;
+    }
+    return oldValue;
   }
 }

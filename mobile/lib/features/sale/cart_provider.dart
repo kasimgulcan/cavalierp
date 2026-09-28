@@ -9,6 +9,7 @@ import 'models/cart_line.dart';
 import 'models/order_request.dart';
 import 'models/product.dart';
 import 'models/sale.dart';
+import 'models/sale_flags.dart';
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartLine>>((ref) {
   final notifier = CartNotifier(
@@ -200,6 +201,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
     int? orderRequestId,
     double discountPercent = 0,
     double discountFixedAmount = 0,
+    SaleFlags flags = const SaleFlags(),
   }) async {
     final lines = _linesPayload(currencyId);
 
@@ -212,6 +214,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
       'OrderRequestId': ?orderRequestId,
       'DiscountPercent': discountPercent,
       'DiscountFixedAmount': roundSaleMoney(discountFixedAmount),
+      ...flags.toParams(),
     });
 
     if (!response.success) return null;
@@ -228,6 +231,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
     String? note,
     double discountPercent = 0,
     double discountFixedAmount = 0,
+    SaleFlags flags = const SaleFlags(),
   }) async {
     final lines = _linesPayload(currencyId);
     final response = await _spClient.exec('Sale.Update', {
@@ -238,6 +242,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
       'Note': note ?? '',
       'DiscountPercent': discountPercent,
       'DiscountFixedAmount': roundSaleMoney(discountFixedAmount),
+      ...flags.toParams(),
     });
 
     if (!response.success) return null;

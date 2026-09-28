@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/sale_flags.dart';
+
 class SaleListFilterBar extends StatelessWidget {
   const SaleListFilterBar({
     super.key,
@@ -7,12 +9,20 @@ class SaleListFilterBar extends StatelessWidget {
     required this.dateToLabel,
     required this.onPickDateFrom,
     required this.onPickDateTo,
+    this.selectedFlag,
+    this.onlyFlagged = false,
+    this.onSelectFlag,
+    this.onSelectFlagged,
   });
 
   final String dateFromLabel;
   final String dateToLabel;
   final VoidCallback onPickDateFrom;
   final VoidCallback onPickDateTo;
+  final SaleFlagKind? selectedFlag;
+  final bool onlyFlagged;
+  final ValueChanged<SaleFlagKind?>? onSelectFlag;
+  final VoidCallback? onSelectFlagged;
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +73,75 @@ class SaleListFilterBar extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Text(
+              'Bayrak',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _FlagFilterChip(
+                  label: 'Tümü',
+                  selected: selectedFlag == null && !onlyFlagged,
+                  onSelected: () => onSelectFlag?.call(null),
+                ),
+                _FlagFilterChip(
+                  label: 'İşaretli',
+                  selected: onlyFlagged && selectedFlag == null,
+                  onSelected: () => onSelectFlagged?.call(),
+                ),
+                for (final style in SaleFlagStyle.values)
+                  _FlagFilterChip(
+                    color: style.color,
+                    selected: selectedFlag == style.kind,
+                    onSelected: () => onSelectFlag?.call(style.kind),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FlagFilterChip extends StatelessWidget {
+  const _FlagFilterChip({
+    required this.selected,
+    required this.onSelected,
+    this.label,
+    this.color,
+  });
+
+  final String? label;
+  final bool selected;
+  final VoidCallback onSelected;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = color ?? theme.colorScheme.primary;
+
+    return FilterChip(
+      label: label == null
+          ? Icon(Icons.flag_rounded, size: 18, color: accent)
+          : Text(label!),
+      selected: selected,
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
+      selectedColor: accent.withValues(alpha: 0.16),
+      side: BorderSide(color: selected ? accent : theme.colorScheme.outlineVariant),
+      labelStyle: theme.textTheme.labelLarge?.copyWith(
+        fontWeight: FontWeight.w600,
+        color: selected ? accent : null,
+      ),
+      onSelected: (_) => onSelected(),
     );
   }
 }

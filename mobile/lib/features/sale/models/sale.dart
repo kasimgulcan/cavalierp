@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../../core/models/json_field.dart';
+import 'sale_flags.dart';
 
 class SaleLine {
   SaleLine({
@@ -73,6 +74,7 @@ class SaleSummary {
     this.discountFixedAmount,
     this.lineCount,
     this.currencyId,
+    this.flags = const SaleFlags(),
   });
 
   final int saleId;
@@ -88,6 +90,7 @@ class SaleSummary {
   final double? discountFixedAmount;
   final int? lineCount;
   final int? currencyId;
+  final SaleFlags flags;
 
   String get displayName =>
       (customer != null && customer!.trim().isNotEmpty) ? customer!.trim() : staffEmail;
@@ -115,6 +118,7 @@ class SaleSummary {
       discountFixedAmount: json.doubleField('DiscountFixedAmount'),
       lineCount: json.intField('LineCount'),
       currencyId: json.intField('CurrencyId'),
+      flags: SaleFlags.fromJson(json),
     );
   }
 }
@@ -133,6 +137,7 @@ class SaleDetail {
     this.discountPercent,
     this.discountFixedAmount,
     this.currencyId,
+    this.flags = const SaleFlags(),
     required this.lines,
   });
 
@@ -148,6 +153,7 @@ class SaleDetail {
   final double? discountPercent;
   final double? discountFixedAmount;
   final int? currencyId;
+  final SaleFlags flags;
   List<SaleLine> lines;
 
   double get computedTotal => lines.fold(0, (sum, line) => sum + line.computedTotal);
@@ -187,6 +193,7 @@ class SaleDetail {
       discountPercent: json.doubleField('DiscountPercent'),
       discountFixedAmount: json.doubleField('DiscountFixedAmount'),
       currencyId: json.intField('CurrencyId'),
+      flags: SaleFlags.fromJson(json),
       lines: lines,
     );
   }
