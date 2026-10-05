@@ -130,6 +130,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
             note: parsed.note ?? '',
             paymentTypeId: detail.paymentTypeId,
             flags: detail.flags,
+            saleAt: detail.createdAt,
             discount: CheckoutDiscountInput(
               percent: detail.discountPercent ?? 0,
               fixedAmount: detail.discountFixedAmount ?? 0,

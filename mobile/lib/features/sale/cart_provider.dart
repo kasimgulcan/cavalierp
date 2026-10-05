@@ -10,6 +10,7 @@ import 'models/order_request.dart';
 import 'models/product.dart';
 import 'models/sale.dart';
 import 'models/sale_flags.dart';
+import 'sale_datetime.dart';
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartLine>>((ref) {
   final notifier = CartNotifier(
@@ -158,11 +159,16 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
     final price = line.listPrice > 0 ? line.listPrice : line.unitPrice;
     return Product(
       sizeId: line.sizeId,
-      productName: line.product,
+      productName: line.displayName,
       priceTL: currencyId == kDefaultCurrencyId ? price : 0,
       priceEUR: currencyId == kEurCurrencyId ? price : 0,
       priceUSD: currencyId == kUsdCurrencyId ? price : 0,
       stockQty: (line.stockQty ?? 0).toDouble(),
+      styleName: line.styleName,
+      color: line.color,
+      sizeLabel: line.sizeLabel,
+      productCode: line.productCode,
+      imageUrl: line.imageUrl,
     );
   }
 
@@ -202,6 +208,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
     double discountPercent = 0,
     double discountFixedAmount = 0,
     SaleFlags flags = const SaleFlags(),
+    DateTime? createdAt,
   }) async {
     final lines = _linesPayload(currencyId);
 
@@ -215,6 +222,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
       'DiscountPercent': discountPercent,
       'DiscountFixedAmount': roundSaleMoney(discountFixedAmount),
       ...flags.toParams(),
+      if (createdAt != null) 'CreatedAt': formatSaleDateTime(createdAt),
     });
 
     if (!response.success) return null;
@@ -232,6 +240,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
     double discountPercent = 0,
     double discountFixedAmount = 0,
     SaleFlags flags = const SaleFlags(),
+    DateTime? createdAt,
   }) async {
     final lines = _linesPayload(currencyId);
     final response = await _spClient.exec('Sale.Update', {
@@ -243,6 +252,7 @@ class CartNotifier extends StateNotifier<List<CartLine>> {
       'DiscountPercent': discountPercent,
       'DiscountFixedAmount': roundSaleMoney(discountFixedAmount),
       ...flags.toParams(),
+      if (createdAt != null) 'CreatedAt': formatSaleDateTime(createdAt),
     });
 
     if (!response.success) return null;

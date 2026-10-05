@@ -12,6 +12,7 @@ import 'currency_selection.dart';
 import 'home_shell_tab_provider.dart';
 import 'pending_order_checkout_provider.dart';
 import 'order_request_provider.dart';
+import 'sale_datetime.dart';
 import 'sale_provider.dart';
 import 'models/sale_flags.dart';
 import 'sale_session.dart';
@@ -48,6 +49,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _loading = false;
   bool _prefilled = false;
   CheckoutDiscountInput _discount = const CheckoutDiscountInput();
+  DateTime? _saleAt;
+  late DateTime _openedAt;
 
   @override
   void initState() {
@@ -60,6 +63,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _paymentTypeId = draft.paymentTypeId;
     _flags = draft.flags;
     _discount = draft.discount;
+    _saleAt = draft.saleAt;
+    _openedAt = draft.saleAt ?? DateTime.now();
   }
 
   @override
@@ -81,8 +86,57 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             paymentTypeId: _paymentTypeId,
             discount: _discount,
             flags: _flags,
+            saleAt: _saleAt,
           ),
         );
+  }
+
+  DateTime get _shownSaleAt => _saleAt ?? _openedAt;
+
+  void _rejectFutureSaleDate() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('İleri tarih seçilemez')),
+    );
+  }
+
+  Future<void> _pickSaleDate() async {
+    final shown = _shownSaleAt;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final first = DateTime(2020);
+    var initial = DateTime(shown.year, shown.month, shown.day);
+    if (initial.isBefore(first)) initial = first;
+    if (initial.isAfter(today)) initial = today;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: first,
+      lastDate: today,
+    );
+    if (picked == null || !mounted) return;
+    final next = saleDateTimeWithPickedDate(shown, picked);
+    if (isFutureSaleDateTime(next, DateTime.now())) {
+      _rejectFutureSaleDate();
+      return;
+    }
+    setState(() => _saleAt = next);
+    _saveDraft();
+  }
+
+  Future<void> _pickSaleTime() async {
+    final shown = _shownSaleAt;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(shown),
+    );
+    if (picked == null || !mounted) return;
+    final next = saleDateTimeWithPickedTime(shown, picked.hour, picked.minute);
+    if (isFutureSaleDateTime(next, DateTime.now())) {
+      _rejectFutureSaleDate();
+      return;
+    }
+    setState(() => _saleAt = next);
+    _saveDraft();
   }
 
   void _applyPendingCheckout(PendingOrderCheckout pending) {
@@ -111,6 +165,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _paymentTypeId = null;
       _flags = const SaleFlags();
       _discount = const CheckoutDiscountInput();
+      _saleAt = null;
+      _openedAt = DateTime.now();
       _prefilled = true;
     });
   }
@@ -154,6 +210,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
     if (confirmed != true || !mounted) return;
 
+    final createdAt = saleDateTimeToSend(chosen: _saleAt, now: DateTime.now());
+    if (isFutureSaleDateTime(createdAt, DateTime.now())) {
+      _rejectFutureSaleDate();
+      return;
+    }
+
     final currencyId = effectiveCurrencyId(ref.read(selectedCurrencyIdProvider));
     final pending = ref.read(pendingOrderCheckoutProvider);
     final editingId = ref.read(editingSaleIdProvider);
@@ -174,6 +236,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               discountPercent: _discount.percent,
               discountFixedAmount: _discount.fixedAmount,
               flags: _flags,
+              createdAt: createdAt,
             )
         : await ref.read(cartProvider.notifier).updateSale(
               saleId: editingId,
@@ -189,6 +252,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               discountPercent: _discount.percent,
               discountFixedAmount: _discount.fixedAmount,
               flags: _flags,
+              createdAt: createdAt,
             );
     setState(() => _loading = false);
     if (!mounted) return;
@@ -320,6 +384,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                           const SizedBox(height: 12),
                         ],
+                        CheckoutFormSection(
+                          title: 'Satış tarihi',
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _loading ? null : _pickSaleDate,
+                                    icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                                    label: Text(formatSaleDateLabel(_shownSaleAt)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _loading ? null : _pickSaleTime,
+                                    icon: const Icon(Icons.schedule_outlined, size: 16),
+                                    label: Text(formatSaleTimeLabel(_shownSaleAt)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
                         CheckoutFormSection(
                           title: 'Müşteri',
                           children: [

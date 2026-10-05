@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/format/price_format.dart';
 import '../models/sale.dart';
+import 'product_thumbnail.dart';
 
 class SaleLineTile extends StatelessWidget {
   const SaleLineTile({
@@ -19,6 +20,10 @@ class SaleLineTile extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final lineTotal = line.lineTotal ?? line.computedTotal;
     final hasLineDiscount = line.listPrice > line.unitPrice;
+    final style = line.styleName?.trim();
+    final name = line.displayName;
+    final sizeLabel = line.sizeLabel?.trim();
+    final color = line.color?.trim();
 
     return Card(
       margin: EdgeInsets.zero,
@@ -33,12 +38,24 @@ class SaleLineTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            ProductThumbnail(imageUrl: line.imageUrl, size: 64),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (style != null && style.isNotEmpty && style != name)
+                    Text(
+                      style,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   Text(
-                    line.product,
+                    name.isEmpty ? line.product : name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(
@@ -46,6 +63,24 @@ class SaleLineTile extends StatelessWidget {
                       height: 1.25,
                     ),
                   ),
+                  if (sizeLabel != null && sizeLabel.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Beden: $sizeLabel',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  if (color != null && color.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      color,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Text(
                     '${line.quantity} adet · ${formatPriceWithSymbol(line.unitPrice, currencySymbol)}',

@@ -6,18 +6,15 @@ import '../../core/format/price_format.dart';
 import 'currency_display.dart';
 import 'currency_provider.dart';
 import 'models/sale_flags.dart';
+import 'sale_totals.dart';
+import 'widgets/sale_flag_picker.dart';
 
 class SaleSummaryScreen extends ConsumerWidget {
   const SaleSummaryScreen({super.key, required this.sale});
 
   final Map<String, dynamic> sale;
 
-  double? get _totalAmount {
-    final value = sale['TotalAmount'];
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value);
-    return null;
-  }
+  double? get _totalAmount => saleNetTotalFromJson(sale);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -123,13 +120,9 @@ class SaleSummaryScreen extends ConsumerWidget {
                                     ),
                                   ),
                                 ],
-                                if (flags.kind != null) ...[
+                                if (flags.any) ...[
                                   const SizedBox(height: 18),
-                                  Icon(
-                                    Icons.flag_rounded,
-                                    size: 28,
-                                    color: SaleFlagStyle.of(flags.kind!).color,
-                                  ),
+                                  SaleFlagMarks(flags: flags),
                                 ],
                                 if (orderRequestId != null) ...[
                                   const SizedBox(height: 18),

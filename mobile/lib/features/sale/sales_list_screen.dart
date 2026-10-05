@@ -6,6 +6,7 @@ import 'currency_display.dart';
 import 'currency_provider.dart';
 import 'models/sale_flags.dart';
 import 'sale_provider.dart';
+import 'sale_totals.dart';
 import 'widgets/order_list_empty_state.dart';
 import 'widgets/sale_list_card.dart';
 import 'widgets/sale_list_filter_bar.dart';
@@ -22,7 +23,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   final _scrollController = ScrollController();
   DateTime? _dateFrom;
   DateTime? _dateTo;
-  SaleFlagKind? _flag;
+  Set<SaleFlagKind> _flags = {};
   bool _onlyFlagged = false;
   late SaleListFilter _filter;
 
@@ -45,7 +46,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   SaleListFilter _buildFilter() => SaleListFilter(
         dateFrom: _dateFrom,
         dateTo: _dateTo,
-        flag: _flag,
+        flags: _flags,
         onlyFlagged: _onlyFlagged,
       );
 
@@ -53,7 +54,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     setState(() {
-      _flag = null;
+      _flags = {};
       _onlyFlagged = false;
       _dateFrom ??= today;
       _dateTo ??= today;
@@ -61,9 +62,11 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     _applyFilter();
   }
 
-  void _selectFlag(SaleFlagKind flag) {
+  void _toggleFlag(SaleFlagKind flag) {
     setState(() {
-      _flag = flag;
+      final next = Set<SaleFlagKind>.of(_flags);
+      if (!next.add(flag)) next.remove(flag);
+      _flags = next;
       _onlyFlagged = false;
       _dateFrom = null;
       _dateTo = null;
@@ -73,7 +76,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
 
   void _selectFlagged() {
     setState(() {
-      _flag = null;
+      _flags = {};
       _onlyFlagged = true;
       _dateFrom = null;
       _dateTo = null;
@@ -128,7 +131,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   double _sumLoadedTotal(SaleListState state) {
     return state.items.fold<double>(
       0,
-      (sum, sale) => sum + (sale.totalAmount ?? 0),
+      (sum, sale) => sum + sale.netTotal,
     );
   }
 
@@ -149,16 +152,11 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
               dateToLabel: _formatDisplayDate(_dateTo),
               onPickDateFrom: () => _pickDate(isFrom: true),
               onPickDateTo: () => _pickDate(isFrom: false),
-              selectedFlag: _flag,
+              selectedFlags: _flags,
               onlyFlagged: _onlyFlagged,
-              onSelectFlag: (flag) {
-                if (flag == null) {
-                  _selectAll();
-                } else {
-                  _selectFlag(flag);
-                }
-              },
+              onSelectAll: _selectAll,
               onSelectFlagged: _selectFlagged,
+              onToggleFlag: _toggleFlag,
             ),
           ),
           if (!state.isLoading && state.items.isNotEmpty) ...[
@@ -212,10 +210,10 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           OrderListEmptyState(
-            title: _filter.flag != null || _filter.onlyFlagged
+            title: _filter.flags.isNotEmpty || _filter.onlyFlagged
                 ? 'Bu bayrakta satış yok'
                 : 'Bu tarih aralığında satış yok',
-            subtitle: _filter.flag != null || _filter.onlyFlagged
+            subtitle: _filter.flags.isNotEmpty || _filter.onlyFlagged
                 ? 'Başka bir işaret seçmeyi veya tarihi daraltmayı deneyin.'
                 : 'Farklı bir tarih aralığı seçmeyi deneyin.',
             icon: Icons.point_of_sale_outlined,

@@ -5,6 +5,7 @@ import '../../core/network/sp_client.dart';
 import '../auth/auth_provider.dart';
 import 'models/sale.dart';
 import 'models/sale_flags.dart';
+import 'order_request_images.dart';
 
 const kSalePageSize = 30;
 
@@ -160,7 +161,9 @@ final saleDetailProvider = FutureProvider.autoDispose.family<SaleDetail, int>((r
   }
   final rows = parseRowList(response.data);
   if (rows.isEmpty) throw Exception('Satış bulunamadı');
-  return SaleDetail.fromJson(rows.first);
+  final detail = SaleDetail.fromJson(rows.first);
+  detail.lines = await enrichSaleLinesWithImages(client, detail.lines);
+  return detail;
 });
 
 class SaleRepository {

@@ -1,6 +1,7 @@
 import '../../core/models/json_field.dart';
 import '../../core/network/sp_client.dart';
 import 'models/order_request.dart';
+import 'models/sale.dart';
 
 Future<Map<String, String>> loadProductImageMap(SpClient client) async {
   for (var attempt = 0; attempt < 3; attempt++) {
@@ -37,6 +38,32 @@ Future<List<OrderRequestLine>> enrichOrderRequestLinesWithImages(
   if (lines.isEmpty) {
     return lines;
   }
+  if (lines.every((line) => line.imageUrl?.trim().isNotEmpty == true)) {
+    return lines;
+  }
+  if (lines.every((line) => line.productCode?.trim().isEmpty != false)) {
+    return lines;
+  }
+
+  final imageByCode = await loadProductImageMap(client);
+  if (imageByCode.isEmpty) return lines;
+
+  return [
+    for (final line in lines)
+      if (line.imageUrl?.trim().isNotEmpty == true)
+        line
+      else
+        line.copyWith(
+          imageUrl: resolveProductImageUrl(imageByCode, line.productCode),
+        ),
+  ];
+}
+
+Future<List<SaleLine>> enrichSaleLinesWithImages(
+  SpClient client,
+  List<SaleLine> lines,
+) async {
+  if (lines.isEmpty) return lines;
   if (lines.every((line) => line.imageUrl?.trim().isNotEmpty == true)) {
     return lines;
   }

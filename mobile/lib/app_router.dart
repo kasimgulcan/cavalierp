@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/config/screenshot_config.dart';
@@ -37,16 +38,23 @@ String _loginRedirect(String returnPath) {
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authStateProvider);
+  // Recreating GoRouter swaps the root navigator key and can mount that key
+  // twice under HeroControllerScope. Auth changes only refresh redirects.
+  final auth = ValueNotifier<AsyncValue<bool>>(ref.read(authStateProvider));
+  ref.listen<AsyncValue<bool>>(authStateProvider, (_, next) {
+    auth.value = next;
+  });
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation:
         ScreenshotConfig.enabled ? ScreenshotConfig.route : '/home',
+    refreshListenable: auth,
     redirect: (context, state) {
-      final isLoading = auth.isLoading;
+      final current = auth.value;
+      final isLoading = current.isLoading;
       if (isLoading) return null;
 
-      final loggedIn = auth.valueOrNull == true;
+      final loggedIn = current.valueOrNull == true;
       final location = state.matchedLocation;
       final onAuth = location == '/login' || location == '/register';
       final isPublic =
@@ -105,4 +113,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  ref.onDispose(() {
+    router.dispose();
+    auth.dispose();
+  });
+  return router;
 });

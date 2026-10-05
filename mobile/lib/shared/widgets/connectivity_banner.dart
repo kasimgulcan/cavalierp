@@ -20,17 +20,30 @@ class ConnectivityBanner extends ConsumerWidget {
       orElse: () => false,
     );
 
+    // The navigator under [child] owns a GlobalKey. Keep it in a stable slot so
+    // showing the banner does not remount that key.
     return Column(
       children: [
-        if (offline)
-          MaterialBanner(
-            content: const Text('İnternet bağlantısı gerekli'),
-            leading: const Icon(Icons.wifi_off, color: Colors.white),
-            backgroundColor: Colors.red.shade700,
-            actions: const [SizedBox.shrink()],
-          ),
+        _OfflineNotice(visible: offline),
         Expanded(child: child),
       ],
+    );
+  }
+}
+
+class _OfflineNotice extends StatelessWidget {
+  const _OfflineNotice({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visible) return const SizedBox.shrink();
+    return MaterialBanner(
+      content: const Text('İnternet bağlantısı gerekli'),
+      leading: const Icon(Icons.wifi_off, color: Colors.white),
+      backgroundColor: Colors.red.shade700,
+      actions: const [SizedBox.shrink()],
     );
   }
 }

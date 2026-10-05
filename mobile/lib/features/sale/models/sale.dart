@@ -13,6 +13,12 @@ class SaleLine {
     required this.listPrice,
     this.lineTotal,
     this.stockQty,
+    this.productCode,
+    this.styleName,
+    this.color,
+    this.sizeLabel,
+    this.catalogProductName,
+    this.imageUrl,
   });
 
   final int? saleLineId;
@@ -23,8 +29,21 @@ class SaleLine {
   final double listPrice;
   final double? lineTotal;
   final int? stockQty;
+  final String? productCode;
+  final String? styleName;
+  final String? color;
+  final String? sizeLabel;
+  final String? catalogProductName;
+  final String? imageUrl;
 
   double get computedTotal => quantity * unitPrice;
+
+  /// Katalog adı varsa o gösterilir. Eski satırlarda Product ürün kodu olabiliyor.
+  String get displayName {
+    final catalog = catalogProductName?.trim();
+    if (catalog != null && catalog.isNotEmpty) return catalog;
+    return product.trim();
+  }
 
   factory SaleLine.fromJson(Map<String, dynamic> json) {
     return SaleLine(
@@ -36,6 +55,12 @@ class SaleLine {
       listPrice: json.doubleField('ListPrice') ?? 0,
       lineTotal: json.doubleField('LineTotal'),
       stockQty: json.intField('StockQty'),
+      productCode: json.stringField('ProductCode'),
+      styleName: json.stringField('StyleName'),
+      color: json.stringField('Color'),
+      sizeLabel: json.stringField('Size'),
+      catalogProductName: json.stringField('ProductName'),
+      imageUrl: json.stringField('ImageUrl'),
     );
   }
 
@@ -47,7 +72,7 @@ class SaleLine {
         'ListPrice': listPrice,
       };
 
-  SaleLine copyWith({int? quantity}) => SaleLine(
+  SaleLine copyWith({int? quantity, String? imageUrl}) => SaleLine(
         saleLineId: saleLineId,
         sizeId: sizeId,
         product: product,
@@ -56,6 +81,12 @@ class SaleLine {
         listPrice: listPrice,
         lineTotal: lineTotal,
         stockQty: stockQty,
+        productCode: productCode,
+        styleName: styleName,
+        color: color,
+        sizeLabel: sizeLabel,
+        catalogProductName: catalogProductName,
+        imageUrl: imageUrl ?? this.imageUrl,
       );
 }
 

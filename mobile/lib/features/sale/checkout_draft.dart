@@ -13,6 +13,7 @@ class CheckoutDraft {
     this.paymentTypeId,
     this.discount = const CheckoutDiscountInput(),
     this.flags = const SaleFlags(),
+    this.saleAt,
   });
 
   final String customer;
@@ -23,6 +24,9 @@ class CheckoutDraft {
   final CheckoutDiscountInput discount;
   final SaleFlags flags;
 
+  /// Null means a new sale whose date was not touched.
+  final DateTime? saleAt;
+
   bool get hasUserInput =>
       customer.trim().isNotEmpty ||
       phone.trim().isNotEmpty ||
@@ -31,7 +35,8 @@ class CheckoutDraft {
       paymentTypeId != null ||
       discount.percent > 0 ||
       discount.fixedAmount != 0 ||
-      flags.any;
+      flags.any ||
+      saleAt != null;
 }
 
 class CheckoutDraftNotifier extends StateNotifier<CheckoutDraft> {

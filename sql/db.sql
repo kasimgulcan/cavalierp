@@ -23,7 +23,7 @@ BEGIN
     DECLARE @FixedAmt DECIMAL(18, 2) = 0;
 
     IF @DiscountPercent > 0
-        SET @PercentAmt = ROUND(@Subtotal * @DiscountPercent / 100.0, 0);
+        SET @PercentAmt = ROUND(@Subtotal * @DiscountPercent / 100.0, 2);
 
     SET @AfterPercent = @Subtotal - @PercentAmt;
     IF @AfterPercent < 0
@@ -31,9 +31,17 @@ BEGIN
 
     IF @DiscountFixedAmount > 0
     BEGIN
-        SET @FixedAmt = ROUND(@DiscountFixedAmount, 0);
+        SET @FixedAmt = ROUND(@DiscountFixedAmount, 2);
         IF @FixedAmt > @AfterPercent
             SET @FixedAmt = @AfterPercent;
+    END
+    ELSE IF @DiscountFixedAmount < 0
+    BEGIN
+        -- Yuvarlama düzeltmesi: yüzde sonrası nete eklenir, liste fiyatını aşamaz.
+        SET @FixedAmt = ROUND(@DiscountFixedAmount, 2);
+        DECLARE @MaxAddBack DECIMAL(18, 2) = @Subtotal - @AfterPercent;
+        IF @FixedAmt < -@MaxAddBack
+            SET @FixedAmt = -@MaxAddBack;
     END
 
     RETURN @AfterPercent - @FixedAmt;
@@ -2190,31 +2198,73 @@ BEGIN
     IF @Page < 1 SET @Page = 1;
     IF @PageSize < 1 OR @PageSize > 100 SET @PageSize = 20;
 
+    ;WITH filtered AS (
+        SELECT
+            ss.SizeId,
+            ss.Barcode,
+            ss.StyleName,
+            ss.ProductName,
+            ss.Color,
+            ss.Size,
+            ss.ProductCode,
+            s.PriceTL,
+            s.PriceEUR,
+            s.PriceUSD,
+            StockQty = ISNULL(st.StockQty, 0),
+            Pos = sz.Pos,
+            GroupKey = CASE
+                WHEN NULLIF(LTRIM(RTRIM(ss.ProductCode)), N'') IS NULL
+                    THEN N'size:' + CONVERT(NVARCHAR(20), ss.SizeId)
+                ELSE ss.ProductCode
+            END
+        FROM dbo.V_ProductSize ss
+        INNER JOIN dbo.Style s ON s.StyleId = ss.StyleId
+        LEFT JOIN dbo.V_SizeStock st ON st.SizeId = ss.SizeId
+        LEFT JOIN dbo.V_SizeSetSize sz
+            ON sz.SizeSetId = ss.SizeSetId
+           AND sz.SizeValue = ss.Size
+        WHERE ss.SizeId IS NOT NULL
+          AND (
+              @Search IS NULL
+           OR @Search = N''
+           OR ss.ProductName LIKE N'%' + @Search + N'%'
+           OR ss.StyleName LIKE N'%' + @Search + N'%'
+           OR ss.ProductGroupName LIKE N'%' + @Search + N'%'
+           OR ss.ProductCategoryName LIKE N'%' + @Search + N'%'
+           OR ss.MainCategoryName LIKE N'%' + @Search + N'%'
+           OR ss.Color LIKE N'%' + @Search + N'%'
+           OR ss.Barcode LIKE N'%' + @Search + N'%')
+    ),
+    numbered AS (
+        SELECT
+            *,
+            rn = ROW_NUMBER() OVER (
+                ORDER BY StyleName, ProductName, Pos, SizeId
+            )
+        FROM filtered
+    ),
+    page_groups AS (
+        SELECT DISTINCT GroupKey
+        FROM numbered
+        WHERE rn > (@Page - 1) * @PageSize
+          AND rn <= @Page * @PageSize
+    )
     SELECT
-        ss.SizeId,
-        ss.Barcode,
-        ss.StyleName,
-        ss.ProductName,
-        ss.Color,
-        ss.Size,
-        ss.ProductCode,
-        s.PriceTL,
-        s.PriceEUR,
-        s.PriceUSD,
-        StockQty = ISNULL(st.StockQty, 0)
-    FROM dbo.V_ProductSize ss
-    INNER JOIN dbo.Style s ON s.StyleId = ss.StyleId
-    LEFT JOIN dbo.V_SizeStock st ON st.SizeId = ss.SizeId
-    WHERE ss.SizeId IS NOT NULL
-      AND (
-          @Search IS NULL
-       OR @Search = N''
-       OR ss.ProductName LIKE N'%' + @Search + N'%'
-       OR ss.StyleName LIKE N'%' + @Search + N'%'
-       OR ss.Barcode LIKE N'%' + @Search + N'%')
-    ORDER BY ss.StyleName, ss.ProductName, ss.SizeId
-    OFFSET (@Page - 1) * @PageSize ROWS
-    FETCH NEXT @PageSize ROWS ONLY;
+        f.SizeId,
+        f.Barcode,
+        f.StyleName,
+        f.ProductName,
+        f.Color,
+        f.Size,
+        f.ProductCode,
+        f.PriceTL,
+        f.PriceEUR,
+        f.PriceUSD,
+        f.StockQty,
+        f.Pos
+    FROM filtered f
+    INNER JOIN page_groups g ON g.GroupKey = f.GroupKey
+    ORDER BY f.StyleName, f.ProductName, f.Pos, f.SizeId;
 END
 GO
 /****** Object:  StoredProcedure [dbo].[API_Report_SalesByProduct]    Script Date: 30.08.2026 06:43:14 ******/
@@ -2280,7 +2330,6 @@ BEGIN
 
     IF @DiscountPercent < 0 SET @DiscountPercent = 0;
     IF @DiscountPercent > 100 SET @DiscountPercent = 100;
-    IF @DiscountFixedAmount < 0 SET @DiscountFixedAmount = 0;
 
     IF @OrderRequestId IS NOT NULL
     BEGIN
@@ -2437,6 +2486,7 @@ BEGIN
         s.CreatedAt,
         s.DiscountPercent,
         s.DiscountFixedAmount,
+        s.Flag,
         SubtotalAmount = (
             SELECT SUM(sl.LineTotal)
             FROM dbo.SaleLines sl
@@ -2452,6 +2502,11 @@ BEGIN
                 sl.SaleLineId,
                 sl.SizeId,
                 sl.Product,
+                ps.ProductName,
+                ps.ProductCode,
+                ps.StyleName,
+                ps.Color,
+                ps.Size,
                 sl.Quantity,
                 sl.UnitPrice,
                 sl.ListPrice,
@@ -2459,6 +2514,7 @@ BEGIN
                 StockQty = ISNULL(st.StockQty, 0)
             FROM dbo.SaleLines sl
             LEFT JOIN dbo.V_SizeStock st ON st.SizeId = sl.SizeId
+            LEFT JOIN dbo.V_ProductSize ps ON ps.SizeId = sl.SizeId
             WHERE sl.SaleId = s.SaleId
             FOR JSON PATH
         )
@@ -2547,7 +2603,6 @@ BEGIN
 
     IF @DiscountPercent IS NOT NULL AND @DiscountPercent < 0 SET @DiscountPercent = 0;
     IF @DiscountPercent IS NOT NULL AND @DiscountPercent > 100 SET @DiscountPercent = 100;
-    IF @DiscountFixedAmount IS NOT NULL AND @DiscountFixedAmount < 0 SET @DiscountFixedAmount = 0;
 
     BEGIN TRANSACTION;
 
