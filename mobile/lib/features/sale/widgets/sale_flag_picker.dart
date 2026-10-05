@@ -16,17 +16,17 @@ class SaleFlagPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
-        for (final style in SaleFlagStyle.values) ...[
+        for (final style in SaleFlagStyle.values)
           _FlagButton(
             style: style,
-            selected: flags.kind == style.kind,
+            selected: flags.contains(style.kind),
             enabled: enabled,
-            onTap: () => onChanged(flags.select(style.kind)),
+            onTap: () => onChanged(flags.toggle(style.kind)),
           ),
-          const SizedBox(width: 8),
-        ],
       ],
     );
   }
@@ -39,13 +39,33 @@ class SaleFlagMarks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final kind = flags.kind;
-    if (kind == null) return const SizedBox.shrink();
+    final selected = [
+      for (final style in SaleFlagStyle.values)
+        if (flags.contains(style.kind)) style,
+    ];
+    if (selected.isEmpty) return const SizedBox.shrink();
 
-    return Icon(
-      Icons.flag_rounded,
-      size: 18,
-      color: SaleFlagStyle.of(kind).color,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        for (final style in selected)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.flag_rounded, size: 16, color: style.color),
+              const SizedBox(width: 4),
+              Text(
+                style.label,
+                style: TextStyle(
+                  color: style.color,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }
@@ -79,10 +99,22 @@ class _FlagButton extends StatelessWidget {
       child: InkWell(
         onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(10),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(Icons.flag_rounded, color: style.color, size: 26),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.flag_rounded, color: style.color, size: 20),
+              const SizedBox(width: 6),
+              Text(
+                style.label,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: style.color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -9,20 +9,22 @@ class SaleListFilterBar extends StatelessWidget {
     required this.dateToLabel,
     required this.onPickDateFrom,
     required this.onPickDateTo,
-    this.selectedFlag,
+    this.selectedFlags = const {},
     this.onlyFlagged = false,
-    this.onSelectFlag,
+    this.onSelectAll,
     this.onSelectFlagged,
+    this.onToggleFlag,
   });
 
   final String dateFromLabel;
   final String dateToLabel;
   final VoidCallback onPickDateFrom;
   final VoidCallback onPickDateTo;
-  final SaleFlagKind? selectedFlag;
+  final Set<SaleFlagKind> selectedFlags;
   final bool onlyFlagged;
-  final ValueChanged<SaleFlagKind?>? onSelectFlag;
+  final VoidCallback? onSelectAll;
   final VoidCallback? onSelectFlagged;
+  final ValueChanged<SaleFlagKind>? onToggleFlag;
 
   @override
   Widget build(BuildContext context) {
@@ -87,19 +89,20 @@ class SaleListFilterBar extends StatelessWidget {
               children: [
                 _FlagFilterChip(
                   label: 'Tümü',
-                  selected: selectedFlag == null && !onlyFlagged,
-                  onSelected: () => onSelectFlag?.call(null),
+                  selected: selectedFlags.isEmpty && !onlyFlagged,
+                  onSelected: () => onSelectAll?.call(),
                 ),
                 _FlagFilterChip(
                   label: 'İşaretli',
-                  selected: onlyFlagged && selectedFlag == null,
+                  selected: onlyFlagged && selectedFlags.isEmpty,
                   onSelected: () => onSelectFlagged?.call(),
                 ),
                 for (final style in SaleFlagStyle.values)
                   _FlagFilterChip(
+                    label: style.label,
                     color: style.color,
-                    selected: selectedFlag == style.kind,
-                    onSelected: () => onSelectFlag?.call(style.kind),
+                    selected: selectedFlags.contains(style.kind) && !onlyFlagged,
+                    onSelected: () => onToggleFlag?.call(style.kind),
                   ),
               ],
             ),
@@ -112,13 +115,13 @@ class SaleListFilterBar extends StatelessWidget {
 
 class _FlagFilterChip extends StatelessWidget {
   const _FlagFilterChip({
+    required this.label,
     required this.selected,
     required this.onSelected,
-    this.label,
     this.color,
   });
 
-  final String? label;
+  final String label;
   final bool selected;
   final VoidCallback onSelected;
   final Color? color;
@@ -129,9 +132,10 @@ class _FlagFilterChip extends StatelessWidget {
     final accent = color ?? theme.colorScheme.primary;
 
     return FilterChip(
-      label: label == null
-          ? Icon(Icons.flag_rounded, size: 18, color: accent)
-          : Text(label!),
+      avatar: color == null
+          ? null
+          : Icon(Icons.flag_rounded, size: 18, color: accent),
+      label: Text(label),
       selected: selected,
       showCheckmark: false,
       visualDensity: VisualDensity.compact,

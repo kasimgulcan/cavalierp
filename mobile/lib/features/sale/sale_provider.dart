@@ -12,13 +12,13 @@ class SaleListFilter {
   const SaleListFilter({
     this.dateFrom,
     this.dateTo,
-    this.flag,
+    this.flags = const {},
     this.onlyFlagged = false,
   });
 
   final DateTime? dateFrom;
   final DateTime? dateTo;
-  final SaleFlagKind? flag;
+  final Set<SaleFlagKind> flags;
   final bool onlyFlagged;
 
   @override
@@ -26,11 +26,17 @@ class SaleListFilter {
       other is SaleListFilter &&
       other.dateFrom == dateFrom &&
       other.dateTo == dateTo &&
-      other.flag == flag &&
-      other.onlyFlagged == onlyFlagged;
+      other.onlyFlagged == onlyFlagged &&
+      other.flags.length == flags.length &&
+      other.flags.containsAll(flags);
 
   @override
-  int get hashCode => Object.hash(dateFrom, dateTo, flag, onlyFlagged);
+  int get hashCode => Object.hash(
+        dateFrom,
+        dateTo,
+        onlyFlagged,
+        Object.hashAllUnordered(flags),
+      );
 }
 
 class SaleListState {
@@ -114,7 +120,7 @@ class SaleListNotifier extends StateNotifier<SaleListState> {
         'Page': nextPage,
         'PageSize': kSalePageSize,
         ...saleListFlagParams(
-          flag: _filter.flag,
+          flags: _filter.flags,
           onlyFlagged: _filter.onlyFlagged,
         ),
       });
